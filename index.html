@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A retro, two-player browser tennis game.">
 <title>Baseline Club</title>
-<link rel="stylesheet" href="./style.css?v=match-status">
+<link rel="stylesheet" href="./style.css?v=rooms-diagnostics">
 </head>
 <body>
 <main>
@@ -68,8 +68,19 @@
 <p class="rules">Hold Drive to charge. Move the stick sideways to aim or up and down to adjust lift on returns. In rallies, hold longer to fill the orange power segment. Release Drive to swing and move again. On a return, release just before the ball reaches you. On a serve, a strong sideways aim adds spin. Hold Lob for an automatic lob at contact.</p>
 </aside>
 </div>
+<details id="connection-log" class="connection-log">
+<summary>Connection log</summary>
+<textarea id="connection-report" aria-label="Connection log" rows="8" readonly></textarea>
+<button id="copy-connection-log" type="button">Copy connection log</button>
+<p id="connection-log-status" role="status">This log stays in this tab until you share it.</p>
+</details>
 </main>
+<script>
+  if (new URLSearchParams(location.hash.slice(1)).has('espresso_connect')) {
+    document.documentElement.dataset.espressoTicket = 'present';
+  }
+</script>
 <script defer src="https://connect.espressocash.com/sdk.js?v=rooms"></script>
-<script type="module" src="./app.js?v=rooms"></script>
+<script type="module" src="./app.js?v=rooms-diagnostics"></script>
 </body>
 </html>

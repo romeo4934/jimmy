@@ -1,8 +1,8 @@
-import { setupEspresso } from './espresso.js?v=rooms';
+import { setupEspresso } from './espresso.js?v=rooms-diagnostics';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
-import { courtSound, playLog } from './feedback.js?v=heavy-shots';
+import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
 const byId = id => document.getElementById(id);
 const court = byId('court');
@@ -14,6 +14,7 @@ const stick = byId('move-stick');
 const render = makeRenderer(court);
 const audio = courtSound();
 const log = playLog();
+const recordConnection = connectionLog();
 let seenEvent = 0;
 let lateralCorrections = 0;
 const refreshLog = () => { byId('export-log').disabled = !log.count; };
@@ -269,13 +270,16 @@ function attach(connection, dataChannel) {
   channel = dataChannel;
   dataChannel.onopen = () => {
     if (peer !== connection) return;
+    recordConnection('WebRTC data channel opened. Match started.');
     espressoPanel.hidden = true;
     enter('Online match · You vs ' + opponentName + '.');
     game.scrollIntoView({ block: 'start' });
   };
   dataChannel.onmessage = event => { if (peer === connection) receive(event.data); };
   dataChannel.onclose = () => {
-    if (peer === connection) lobby('The other player disconnected. Start a new match to reconnect.');
+    if (peer !== connection) return;
+    recordConnection('WebRTC data channel closed.');
+    lobby('The other player disconnected. Start a new match to reconnect.');
   };
 }
 
@@ -284,8 +288,13 @@ function createPeer(index) {
   const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
   peer = connection;
   mode = 'connecting';
+  connection.oniceconnectionstatechange = () => {
+    if (peer === connection) recordConnection(`ICE: ${connection.iceConnectionState}.`);
+  };
   connection.onconnectionstatechange = () => {
-    if (peer === connection && connection.connectionState === 'failed') {
+    if (peer !== connection) return;
+    recordConnection(`WebRTC: ${connection.connectionState}.`);
+    if (connection.connectionState === 'failed') {
       lobby('The direct connection failed. Try again on another network.');
     }
   };
@@ -411,6 +420,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 const espressoLobby = setupEspresso({
+  record: recordConnection,
   async createOffer() {
     if (peer) throw new Error('Leave the current match before inviting someone else.');
     showSession('Preparing your Espresso match…');

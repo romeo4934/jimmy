@@ -23,6 +23,31 @@ export function playLog() {
   };
 }
 
+export function connectionLog() {
+  const output = document.getElementById('connection-report');
+  const status = document.getElementById('connection-log-status');
+  const elapsedFrom = performance.now();
+  const entries = [];
+  document.getElementById('copy-connection-log').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(output.value);
+      status.textContent = 'Connection log copied.';
+    } catch {
+      output.select();
+      status.textContent = 'Copy the selected connection log.';
+    }
+  };
+  return (event, error) => {
+    const elapsed = ((performance.now() - elapsedFrom) / 1000).toFixed(2);
+    const code = [error?.code, error?.name].find(value =>
+      typeof value === 'string' && /^[a-z][a-z0-9_]{0,39}$/i.test(value));
+    entries.push(`[${elapsed}s] ${event}${code ? ` (${code})` : ''}`);
+    if (entries.length > 60) entries.shift();
+    output.value = entries.join('\n');
+    output.scrollTop = output.scrollHeight;
+  };
+}
+
 export function courtSound() {
   let context;
   let noise;

@@ -9,8 +9,9 @@ function explain(error) {
   if (error?.code === 'site_not_registered' || error?.code === 'site_not_verified') {
     return 'Baseline Club needs an active site in Espresso Connect.';
   }
-  if (error?.code === 'cancelled') return 'Connection cancelled.';
-  if (error?.code === 'blocked') return 'Open Baseline Club in Safari or Chrome and allow the Espresso window.';
+  if (error?.code === 'cancelled') return 'Espresso sign-in closed before it finished. Try signing in again.';
+  if (error?.code === 'blocked') return 'The Espresso sign-in window was blocked. Open Baseline Club directly in Safari or Chrome and allow pop-ups.';
+  if (error?.code === 'not_connected') return 'Reconnect to Espresso Cash to continue.';
   if (error?.code === 'rate_limited') return 'Too many requests to Espresso. Try again shortly.';
   if (error?.code === 'room_closed' || error?.code === 'invite_expired' || error?.code === 'room_not_found') {
     return 'This invite is no longer available. Ask your friend for a new link.';
@@ -43,7 +44,7 @@ async function playerName(room, sender, fallback = 'Friend') {
   return typeof name === 'string' && name.trim() ? name.trim().slice(0, 64) : fallback;
 }
 
-export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer }) {
+export function setupEspresso({ record, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer }) {
   const params = new URLSearchParams(location.search);
   const incoming = params.get('espresso_invite');
   const legacyInvite = new URLSearchParams(location.hash.slice(1)).has('invite') || Boolean(incoming && params.has('room'));
@@ -61,7 +62,15 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
   const join = byId('espresso-join');
   const status = text => { byId('espresso-status').textContent = text; };
   let sdk, pendingSignIn, activeRoom, roomTimer;
+  let needsConnection = false;
   let generation = 0, connectionCheck = 0;
+  if (isGuest) {
+    record(document.documentElement.dataset.espressoTicket === 'present'
+      ? 'Invite opened with an Espresso connection ticket.'
+      : 'Invite opened without an Espresso connection ticket.');
+  } else {
+    record('Game opened.');
+  }
 
   function client() {
     if (!window.EspressoConnect) throw new Error('Espresso Connect could not load. Try again in Safari or Chrome.');
@@ -72,6 +81,7 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
     return sdk;
   }
   function showConnection(connection) {
+    needsConnection = !connection;
     connectButton.hidden = isGuest || Boolean(connection);
     if (isGuest) join.textContent = connection ? 'Retry joining' : 'Connect and join';
     account.hidden = !connection;
@@ -81,17 +91,21 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
     const check = ++connectionCheck;
     let connection;
     try { connection = await client().isConnected(); }
-    catch { /* Let the player retry if the SDK or saved connection is unavailable. */ }
-    if (check === connectionCheck) showConnection(connection);
+    catch (error) { record('Saved-session check failed.', error); }
+    if (check === connectionCheck) {
+      if (needsConnection !== !connection) record(connection ? 'Espresso connection found.' : 'No saved Espresso connection.');
+      showConnection(connection);
+    }
   }
   async function completeSignIn(interactive) {
     const espresso = client();
-    const connection = await espresso.isConnected();
+    // A sign-in window must open directly from the tap, before any async reads.
+    const openSignIn = interactive && needsConnection;
+    record(openSignIn ? 'Opening the Espresso sign-in window.' : 'Checking the Espresso connection.');
+    const connection = openSignIn ? await espresso.connect() : await espresso.isConnected();
+    record(connection ? 'Espresso connection confirmed.' : 'No saved Espresso connection.');
     showConnection(connection);
-    if (connection) return true;
-    if (!interactive) return false;
-    showConnection(await espresso.connect());
-    return true;
+    return Boolean(connection);
   }
   function signIn(interactive = true) {
     if (!pendingSignIn) {
@@ -133,14 +147,18 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
     status(legacyInvite ? 'This invite was created before Espresso Rooms. Ask your friend for a new invite.' : '');
   }
   function failMatch(error) {
+    record('Match setup failed.', error);
     reset();
     cancelPeer();
+    if (error?.code === 'not_connected') showConnection(null);
     status(explain(error));
   }
   function waitForDescription(room, type, timeout, timeoutMessage, receive) {
     let received = false;
     roomTimer = setTimeout(() => {
-      if (activeRoom === room) failMatch(new Error(timeoutMessage));
+      if (activeRoom !== room) return;
+      record(type === 'offer' ? 'Timed out waiting for the host’s offer.' : 'Timed out waiting for the guest’s answer.');
+      failMatch(new Error(timeoutMessage));
     }, timeout);
     room.onMessage(message => {
       if (activeRoom !== room || received || typeof message.from !== 'string' || !message.from) return;
@@ -166,8 +184,14 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
     updateInviteControls(true);
     status('Preparing your Espresso invitation…');
     try {
-      await signIn();
+      const connected = await signIn();
       if (current !== generation) return;
+      if (!connected) {
+        updateInviteControls(false);
+        status('Connect to Espresso Cash to send an invite.');
+        return;
+      }
+      record('Preparing the WebRTC offer.');
       const offer = await createOffer();
       if (current !== generation) return;
       const invite = await client().invite({
@@ -177,9 +201,11 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
       });
       if (current !== generation) return;
       if (!invite?.id) throw new Error('Espresso did not return a match room.');
+      record(open ? 'Espresso share link created.' : 'Espresso username invite submitted.');
       const room = activeRoom = client().room(invite.id);
       await sendDescription(room, offer);
       if (activeRoom !== room) return;
+      record('Offer sent to the Espresso room.');
       if (open) showShareLink(invite.link);
       hostFields.hidden = true;
       inviteReady();
@@ -188,6 +214,7 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
       waitForDescription(room, 'answer', inviteLifetime * 1000, 'This invite expired. Send a new one.', async (answer, from) => {
         const name = await playerName(room, from, username ? '@' + username.replace(/^@/, '') : 'Friend');
         if (activeRoom !== room) return;
+        record('Guest answer received.');
         status('Connecting to your friend…');
         await applyAnswer(answer, name);
         if (activeRoom === room) closeRoom();
@@ -228,7 +255,8 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
     const current = ++generation;
     join.hidden = true;
     updateInviteControls(true);
-    status('Joining your Espresso match…');
+    record(interactive ? 'Join button tapped.' : 'Trying to join automatically.');
+    status(interactive && needsConnection ? 'Approve sign-in in Espresso Cash, then return to this tab.' : 'Joining your Espresso match…');
     try {
       const connected = await signIn(interactive);
       if (current !== generation) return;
@@ -242,18 +270,23 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
       const inviteId = espresso.invitation();
       if (!/^inv_[\w-]+$/.test(inviteId ?? '')) throw new Error('Open the invite from Espresso Cash to join this match.');
       const room = activeRoom = espresso.room(inviteId);
+      record('Checking access to the Espresso room.');
       status('Waiting for your friend’s game. Keep this tab open.');
       waitForDescription(room, 'offer', 60_000, 'Still waiting for the host. Ask them to open their game tab, then try again.', async (offer, from) => {
         const name = await playerName(room, from);
         if (activeRoom !== room) return;
+        record('Host offer received.');
         status('Connecting to your friend…');
         await takeOffer(offer, name, async answer => {
-          if (activeRoom === room) await sendDescription(room, answer, { to: from });
+          if (activeRoom !== room) return;
+          await sendDescription(room, answer, { to: from });
+          if (activeRoom === room) record('Answer sent to the host.');
         });
         if (activeRoom === room) closeRoom();
       });
       // onMessage starts polling; awaiting me() also surfaces errors from the first poll.
       await room.me();
+      if (current === generation) record('Espresso room access confirmed.');
     } catch (error) {
       if (current === generation) failMatch(error);
     }
@@ -261,9 +294,12 @@ export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer
   join.onclick = () => joinMatch(true);
   connectButton.onclick = async () => {
     connectButton.disabled = true;
-    status('');
-    try { await signIn(); }
-    catch (error) { status(explain(error)); }
+    status('Approve sign-in in Espresso Cash, then return to this tab.');
+    try { if (await signIn()) status(''); }
+    catch (error) {
+      record('Espresso sign-in failed.', error);
+      status(explain(error));
+    }
     finally { connectButton.disabled = false; }
   };
   box.hidden = false;
