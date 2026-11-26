@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A retro, two-player browser tennis game.">
 <title>Baseline Club</title>
-<link rel="stylesheet" href="./style.css?v=espresso-invites">
+<link rel="stylesheet" href="./style.css?v=espresso-delivery">
 </head>
 <body>
 <main>
@@ -34,11 +34,17 @@
 <section id="espresso-invite" class="espresso-invite" aria-label="Play with Espresso Cash" hidden>
 <button id="espresso-connect" type="button" hidden>Connect Espresso Cash</button>
 <p id="espresso-account" role="status" hidden>Connected to Espresso Cash</p>
-<form id="espresso-host-fields">
-<label for="espresso-to">Friend’s Espresso Cash username (optional)</label>
-<input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username" aria-describedby="espresso-invite-help">
-<p id="espresso-invite-help">Leave blank to share an invite link.</p>
-<button id="espresso-send" type="submit">Invite friend</button>
+<form id="espresso-host-fields" autocomplete="off">
+<label for="espresso-delivery">Invite by</label>
+<select id="espresso-delivery">
+<option value="link">Share a link</option>
+<option value="username">Espresso username</option>
+</select>
+<div id="espresso-recipient" hidden>
+<label for="espresso-to">Friend’s Espresso Cash username</label>
+<input id="espresso-to" type="text" autocapitalize="none" maxlength="64" placeholder="@username" disabled>
+</div>
+<button id="espresso-send" type="submit">Create invite link</button>
 </form>
 <button id="espresso-join" type="button" hidden>Join match</button>
 <div id="espresso-share" hidden>
@@ -74,6 +80,6 @@
 </div>
 </main>
 <script async src="https://connect.espressocash.com/sdk.js"></script>
-<script type="module" src="./app.js?v=espresso-share"></script>
+<script type="module" src="./app.js?v=espresso-delivery"></script>
 </body>
 </html>

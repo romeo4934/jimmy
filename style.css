@@ -71,5 +71,6 @@ canvas{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-use
 }
 
 .espresso-invite{margin:12px 0;padding:12px;border:1px solid currentColor;border-radius:8px}
-.espresso-invite input{width:100%;box-sizing:border-box;margin:6px 0}
+.espresso-invite :is(input,select){display:block;width:100%;box-sizing:border-box;margin:6px 0}
+.espresso-invite select{font:inherit;color:var(--ink);background:#fffef7;border:1px solid var(--line);border-radius:5px;padding:7px}
 .espresso-invite p:empty{display:none}

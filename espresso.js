@@ -26,6 +26,9 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   const account = byId('espresso-account');
   const send = byId('espresso-send');
   const hostFields = byId('espresso-host-fields');
+  const delivery = byId('espresso-delivery');
+  const recipient = byId('espresso-recipient');
+  const usernameField = byId('espresso-to');
   const share = byId('espresso-share');
   const shareUrl = byId('espresso-share-url');
   const join = byId('espresso-join');
@@ -86,26 +89,32 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     return pendingSignIn;
   }
   function showShareLink(value) {
-    const url = new URL(value);
-    if (!inviteOrigins.has(url.origin) || url.username || url.password || !/^\/i\/[^/]+$/.test(url.pathname)) {
+    let url;
+    try { url = new URL(value); }
+    catch { /* Report a missing or malformed link below. */ }
+    if (!url || !inviteOrigins.has(url.origin) || url.username || url.password || !/^\/i\/[^/]+$/.test(url.pathname)) {
       throw new Error('Espresso did not return a valid invite link.');
     }
     shareUrl.value = url.href;
     share.hidden = false;
   }
-  function busy(value) {
-    send.disabled = join.disabled = value;
+  function updateInviteControls(busy) {
+    const byUsername = delivery.value === 'username';
+    recipient.hidden = !byUsername;
+    usernameField.disabled = busy || !byUsername;
+    delivery.disabled = send.disabled = join.disabled = busy;
+    send.textContent = byUsername ? 'Send Espresso invite' : 'Create invite link';
   }
 
   async function invite() {
-    const username = byId('espresso-to').value.trim();
-    const open = username === '';
-    if (/[\s,]/.test(username)) {
-      status('Enter one Espresso Cash @username, or leave the field blank to share a link.');
+    const open = delivery.value !== 'username';
+    const username = open ? '' : usernameField.value.trim();
+    if (!open && (!username || /[\s,]/.test(username))) {
+      status('Enter one Espresso Cash @username.');
       return;
     }
     const current = ++generation;
-    busy(true);
+    updateInviteControls(true);
     status('Preparing your Espresso invitation…');
     try {
       await signIn();
@@ -119,8 +128,9 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
         });
         if (current !== generation) return;
         if (open) showShareLink(delivered.link);
+        hostFields.hidden = true;
         status(open ? 'Share this link and keep this tab open. Paste your friend’s reply code when they send it.' :
-          'Invitation submitted. Keep this tab open and paste your friend’s reply code when they send it.');
+          'Espresso username invite submitted. Keep this tab open and paste your friend’s reply code when they send it.');
         return;
       }
       const created = await request('/rooms', 'POST', { username, open, offer });
@@ -131,8 +141,9 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       }
       active = route;
       if (open) showShareLink(created.link);
+      hostFields.hidden = true;
       status(open ? 'Share this link and keep this tab open while your friend joins.' :
-        'Invitation submitted. Keep this tab open while your friend accepts in Espresso Cash.');
+        'Espresso username invite submitted. Keep this tab open while your friend accepts.');
       const deadline = Date.now() + 900000;
       while (current === generation && Date.now() < deadline) {
         const { answer } = await request(route);
@@ -149,11 +160,15 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       if (current === generation) {
         cancelPeer();
         status(explain(error));
-        busy(false);
+        updateInviteControls(false);
       }
     }
   }
 
+  delivery.onchange = () => {
+    updateInviteControls(false);
+    status('');
+  };
   hostFields.onsubmit = event => {
     event.preventDefault();
     void invite();
@@ -179,7 +194,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   };
   join.onclick = async () => {
     const current = ++generation;
-    busy(true);
+    updateInviteControls(true);
     status('Verifying your Espresso Cash invitation…');
     try {
       await signIn();
@@ -197,7 +212,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
         status(explain(error));
       }
     } finally {
-      if (current === generation) busy(false);
+      if (current === generation) updateInviteControls(false);
     }
   };
   connectButton.onclick = async () => {
@@ -224,7 +239,8 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       if (route) void request(route, 'DELETE').catch(() => {});
       share.hidden = true;
       shareUrl.value = '';
-      busy(false);
+      hostFields.hidden = isGuest;
+      updateInviteControls(false);
       status(isGuest ? 'Use the same Espresso account that accepted the invite.' : '');
     }
   };
