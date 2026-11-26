@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-lobby';
+import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-share';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -194,7 +194,7 @@ function lobby(message) {
   byId('connect').disabled = false;
   byId('answer').value = '';
   byId('status').textContent = message || (invitation ?
-    'A friend invited you to play. Accept to generate your reply code.' :
+    'A friend invited you to play. Join to get your reply code.' :
     'Start a practice match or invite a friend to play online.');
 }
 
@@ -495,9 +495,17 @@ const espressoLobby = setupEspresso({
   }
 });
 
+byId('espresso-invite').hidden = Boolean(invitation);
+
 function start() {
   lobby();
-  if (!invitation) enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);
+  if (invitation || espressoLobby.isGuest) {
+    if (matchMedia('(max-width: 740px), (orientation: landscape) and (max-height: 600px)').matches) {
+      byId('setup').scrollIntoView({ block: 'start' });
+    }
+    return;
+  }
+  enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);
 }
 start();
 requestAnimationFrame(frame);

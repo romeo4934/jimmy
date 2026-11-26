@@ -35,15 +35,21 @@
 <button id="espresso-connect" type="button" hidden>Connect Espresso Cash</button>
 <p id="espresso-account" role="status" hidden>Connected to Espresso Cash</p>
 <form id="espresso-host-fields">
-<label for="espresso-to">Friend’s Espresso Cash username</label>
-<input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username">
+<label for="espresso-to">Friend’s Espresso Cash username (optional)</label>
+<input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username" aria-describedby="espresso-invite-help">
+<p id="espresso-invite-help">Leave blank to share an invite link.</p>
 <button id="espresso-send" type="submit">Invite friend</button>
 </form>
-<button id="espresso-join" type="button" hidden>Join Espresso match</button>
+<button id="espresso-join" type="button" hidden>Join match</button>
+<div id="espresso-share" hidden>
+<label for="espresso-share-url">Espresso invite link</label>
+<input id="espresso-share-url" type="text" readonly>
+<button id="espresso-share-button" type="button">Share invite</button>
+</div>
 <p id="espresso-status" role="status"></p>
 </section>
 <p id="status" role="status">Start a practice match or invite a friend to play online.</p>
-<button id="join" hidden>Accept online invite</button>
+<button id="join" hidden>Join match</button>
 <div id="exchange" hidden>
 <div id="replyBox" hidden>
 <label for="out">Reply code</label>
@@ -68,6 +74,6 @@
 </div>
 </main>
 <script async src="https://connect.espressocash.com/sdk.js"></script>
-<script type="module" src="./app.js?v=espresso-lobby"></script>
+<script type="module" src="./app.js?v=espresso-share"></script>
 </body>
 </html>
