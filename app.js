@@ -27,6 +27,7 @@ let mode = 'lobby';
 let match = newMatch();
 let view = 0;
 let peer;
+let peerTimer;
 let opponentName = 'Friend';
 let channel;
 let remote = neutral();
@@ -172,6 +173,7 @@ document.querySelectorAll('[data-key]').forEach(button => {
 });
 
 function lobby(message) {
+  clearTimeout(peerTimer);
   const previous = peer;
   peer = undefined;
   channel = undefined;
@@ -242,6 +244,9 @@ async function gather(connection, description) {
     });
   }
   const { type, sdp } = connection.localDescription;
+  const candidates = [...sdp.matchAll(/^a=candidate:[^\r\n]*? typ (host|srflx|prflx|relay)\b/gm)];
+  const types = [...new Set(candidates.map(candidate => candidate[1]))];
+  recordConnection(`WebRTC ${type} gathered ${candidates.length} ICE candidates${types.length ? ` (${types.join(', ')})` : ''}.`);
   return { type, sdp };
 }
 
@@ -270,6 +275,7 @@ function attach(connection, dataChannel) {
   channel = dataChannel;
   dataChannel.onopen = () => {
     if (peer !== connection) return;
+    clearTimeout(peerTimer);
     recordConnection('WebRTC data channel opened. Match started.');
     espressoPanel.hidden = true;
     enter('Online match · You vs ' + opponentName + '.');
@@ -281,6 +287,17 @@ function attach(connection, dataChannel) {
     recordConnection('WebRTC data channel closed.');
     lobby('The other player disconnected. Start a new match to reconnect.');
   };
+}
+
+const directConnectionFailed = 'The browsers couldn’t connect. Try a new invite or another network.';
+
+function waitForPeer(connection) {
+  if (peer !== connection || channel?.readyState === 'open') return;
+  peerTimer = setTimeout(() => {
+    if (peer !== connection) return;
+    recordConnection('WebRTC timed out after exchanging the offer and answer.');
+    lobby(directConnectionFailed);
+  }, 30_000);
 }
 
 function createPeer(index) {
@@ -295,7 +312,7 @@ function createPeer(index) {
     if (peer !== connection) return;
     recordConnection(`WebRTC: ${connection.connectionState}.`);
     if (connection.connectionState === 'failed') {
-      lobby('The direct connection failed. Try again on another network.');
+      lobby(directConnectionFailed);
     }
   };
   return connection;
@@ -445,12 +462,15 @@ const espressoLobby = setupEspresso({
     if (peer !== connection) throw new Error('Match cancelled.');
     await sendAnswer(answer);
     if (peer === connection && mode === 'connecting') courtMode.textContent = 'CONNECTING TO FRIEND';
+    waitForPeer(connection);
   },
   async applyAnswer(answer, name) {
-    if (!peer || view !== 0) throw new Error('Match cancelled.');
+    const connection = peer;
+    if (!connection || view !== 0) throw new Error('Match cancelled.');
     opponentName = name;
     courtMode.textContent = 'CONNECTING TO FRIEND';
-    await peer.setRemoteDescription(answer);
+    await connection.setRemoteDescription(answer);
+    waitForPeer(connection);
   },
   cancelPeer() {
     if (peer) lobby('Ready for a new match.');
