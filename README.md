@@ -4,7 +4,7 @@
 
 Jeu de tennis rétro pour navigateur, avec entraînement contre le CPU et parties à deux sur invitation.
 
-Pour jouer avec un ami, ouvre **Setup → Connect Espresso Cash**, puis **Invite by Espresso username**. Le destinataire ouvre son invitation dans Espresso Cash. Le jeu propose également **Create online invite** quand le serveur Espresso du jeu est absent.
+Pour jouer avec un ami, ouvre **Setup**. Clique sur **Connect Espresso Cash** si le bouton apparaît, puis choisis **Invite by Espresso username**. Le jeu reconnaît une session enregistrée dans ce navigateur. Le destinataire ouvre son invitation dans Espresso Cash. Le jeu propose également **Create online invite** quand le serveur Espresso du jeu est absent.
 
 ### Déploiement Espresso Cash
 

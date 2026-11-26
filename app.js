@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-domain';
+import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-session';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 

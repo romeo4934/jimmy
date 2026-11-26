@@ -23,20 +23,34 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   const isGuest = automaticEspresso && /^[A-Za-z0-9_-]{43}$/.test(incoming.room ?? '') &&
     /^inv_[\w-]+$/.test(incoming.invite ?? '');
   const box = byId('espresso-invite');
+  const connectButton = byId('espresso-connect');
+  const account = byId('espresso-account');
   const send = byId('espresso-send');
   const share = byId('espresso-link');
   const join = byId('espresso-join');
   const status = text => { byId('espresso-status').textContent = text; };
-  let sdk, connection, credential, active, generation = 0;
+  let sdk, connectionId, credential, active, pendingSignIn;
+  let generation = 0, connectionCheck = 0;
 
   function client() {
     if (!window.EspressoConnect) throw new Error('Espresso Connect could not load. Try again in Safari or Chrome.');
     return sdk ??= window.EspressoConnect({ siteName: 'Baseline Club' });
   }
-  async function connected() {
-    const espresso = client();
-    connection = await espresso.isConnected() || await espresso.connect();
-    return connection;
+  function showConnection(connection) {
+    connectButton.hidden = Boolean(connection);
+    account.hidden = !connection;
+    if (connectionId !== connection?.connectionId) {
+      connectionId = connection?.connectionId;
+      credential = undefined;
+    }
+  }
+  async function refreshConnection() {
+    if (pendingSignIn) return;
+    const check = ++connectionCheck;
+    let connection;
+    try { connection = await client().isConnected(); }
+    catch { /* Allow a manual connection when the saved session cannot be read. */ }
+    if (check === connectionCheck) showConnection(connection);
   }
   async function request(route, method = 'GET', payload, session = credential) {
     const response = await fetch(lobbyApi.replace(/\/$/, '') + route, {
@@ -54,11 +68,21 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     }
     return json;
   }
-  async function signIn() {
-    await connected();
+  async function completeSignIn() {
+    const espresso = client();
+    const connection = await espresso.isConnected();
+    showConnection(connection);
+    if (!connection) showConnection(await espresso.connect());
     if (!automaticEspresso || credential) return;
     const { nonce } = await request('/nonce', 'POST', null, null);
-    credential = (await request('/session', 'POST', await sdk.linkProof(nonce), null)).token;
+    credential = (await request('/session', 'POST', await espresso.linkProof(nonce), null)).token;
+  }
+  function signIn() {
+    if (!pendingSignIn) {
+      connectionCheck++;
+      pendingSignIn = completeSignIn().finally(() => { pendingSignIn = undefined; });
+    }
+    return pendingSignIn;
   }
   function showLink(value) {
     const url = new URL(value);
@@ -80,7 +104,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     const current = ++generation;
     busy(true);
     byId('espresso-share').hidden = true;
-    status('Connecting to Espresso Cash…');
+    status('Preparing your Espresso invitation…');
     try {
       await signIn();
       if (current !== generation) return;
@@ -152,14 +176,12 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       if (current === generation) busy(false);
     }
   };
-  byId('espresso-connect').onclick = async event => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    try {
-      await signIn();
-      status('Espresso Cash connected.');
-    } catch (error) { status(explain(error)); }
-    finally { button.disabled = false; }
+  connectButton.onclick = async () => {
+    connectButton.disabled = true;
+    status('');
+    try { await signIn(); }
+    catch (error) { status(explain(error)); }
+    finally { connectButton.disabled = false; }
   };
   byId('espresso-copy').onclick = async () => {
     const field = byId('espresso-share-url');
@@ -174,6 +196,11 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   box.hidden = false;
   byId('espresso-host-fields').hidden = isGuest;
   join.hidden = !isGuest;
+  if (window.EspressoConnect || document.readyState === 'complete') void refreshConnection();
+  else window.addEventListener('load', refreshConnection, { once: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && window.EspressoConnect) void refreshConnection();
+  });
   return {
     reset() {
       generation++;
@@ -182,7 +209,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       if (route) void request(route, 'DELETE').catch(() => {});
       byId('espresso-share').hidden = true;
       busy(false);
-      status(isGuest ? 'Connect with the same Espresso account that accepted the invite.' : '');
+      status(isGuest ? 'Use the same Espresso account that accepted the invite.' : '');
     }
   };
 }

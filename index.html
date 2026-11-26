@@ -35,7 +35,8 @@
 <button id="drill">3-ball return drill</button>
 <button id="practice">Practice vs CPU</button>
 <section id="espresso-invite" class="espresso-invite" aria-label="Play with Espresso Cash" hidden>
-<button id="espresso-connect" type="button">Connect Espresso Cash</button>
+<button id="espresso-connect" type="button" hidden>Connect Espresso Cash</button>
+<p id="espresso-account" role="status" hidden>Connected to Espresso Cash</p>
 <div id="espresso-host-fields">
 <label for="espresso-to">Friend’s Espresso Cash username</label>
 <input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username">
@@ -72,6 +73,6 @@
 </div>
 </main>
 <script async src="https://connect.espressocash.com/sdk.js"></script>
-<script type="module" src="./app.js?v=espresso-domain"></script>
+<script type="module" src="./app.js?v=espresso-session"></script>
 </body>
 </html>
