@@ -4,6 +4,8 @@ export const automaticEspresso = lobbyApi !== '';
 const byId = id => document.getElementById(id);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const fixedGameTitle = 'Tennis at Baseline Club';
+// Espresso can still issue links on its former domain during the migration.
+const inviteOrigins = new Set(['https://connect.espressocash.com', 'https://connect.brij.fi']);
 
 function explain(error) {
   if (error?.code === 'site_not_registered' || error?.code === 'site_not_verified') {
@@ -60,7 +62,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   }
   function showLink(value) {
     const url = new URL(value);
-    if (url.origin !== 'https://connect.brij.fi') throw new Error('Espresso did not return a share link.');
+    if (!inviteOrigins.has(url.origin)) throw new Error('Espresso did not return a share link.');
     const field = byId('espresso-share-url');
     field.value = url.href;
     byId('espresso-share').hidden = false;

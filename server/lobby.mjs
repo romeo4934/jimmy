@@ -35,7 +35,7 @@ function signal(value) {
 }
 
 async function espresso(path, { apiKey, payload }) {
-  const response = await fetch('https://api.brij.fi/connect/v2/server' + path, {
+  const response = await fetch('https://api.espressocash.com/connect/v2/server' + path, {
     method: payload ? 'POST' : 'GET',
     headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
     body: payload ? JSON.stringify(payload) : undefined,

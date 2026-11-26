@@ -8,7 +8,7 @@ Pour jouer avec un ami, ouvre **Setup → Connect Espresso Cash**, puis **Invite
 
 ### Déploiement Espresso Cash
 
-1. Enregistrer l’origine du jeu dans [Espresso Connect Developers](https://connect.brij.fi/developers) et la faire vérifier. Pour GitHub Pages, l’origine est `https://romeo4934.github.io`. Le fichier de preuve doit être à la racine de cet hôte, dans `/.well-known/espresso.json`.
+1. Enregistrer l’origine du jeu dans [Espresso Connect Developers](https://connect.espressocash.com/developers) et la faire vérifier. Pour GitHub Pages, l’origine est `https://romeo4934.github.io`. Le fichier de preuve doit être à la racine de cet hôte, dans `/.well-known/espresso.json`.
 2. Déployer `server/lobby.mjs` sur un service Node.js derrière HTTPS. Démarrage avec `node server/lobby.mjs`. Configurer `GAME_URL=https://romeo4934.github.io/jimmy/` et le secret **serveur** `ESPRESSO_API_KEY`. Le serveur utilise une seule instance et garde les invitations en mémoire pendant 15 minutes.
 3. Mettre l’URL HTTPS du serveur dans `online-config.js`. Les joueurs approuvent la connexion dans Espresso Cash. Le serveur vérifie l’identité de l’invité et son acceptation avant d’échanger automatiquement les informations de connexion. GitHub Pages héberge le jeu en mode statique.
 
