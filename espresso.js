@@ -41,7 +41,8 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     return sdk ??= window.EspressoConnect({ siteName: 'Baseline Club' });
   }
   function showConnection(connection) {
-    connectButton.hidden = Boolean(connection);
+    connectButton.hidden = isGuest || Boolean(connection);
+    if (isGuest) join.textContent = connection ? 'Join match' : 'Connect and join';
     account.hidden = !connection;
     if (connectionId !== connection?.connectionId) {
       connectionId = connection?.connectionId;
@@ -72,19 +73,24 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     }
     return json;
   }
-  async function completeSignIn() {
+  async function completeSignIn(interactive) {
     const espresso = client();
     const connection = await espresso.isConnected();
     showConnection(connection);
-    if (!connection) showConnection(await espresso.connect());
-    if (!automaticEspresso || credential) return;
-    const { nonce } = await request('/nonce', 'POST', null, null);
-    credential = (await request('/session', 'POST', await espresso.linkProof(nonce), null)).token;
+    if (!connection) {
+      if (!interactive) return false;
+      showConnection(await espresso.connect());
+    }
+    if (automaticEspresso && !credential) {
+      const { nonce } = await request('/nonce', 'POST', null, null);
+      credential = (await request('/session', 'POST', await espresso.linkProof(nonce), null)).token;
+    }
+    return true;
   }
-  function signIn() {
+  function signIn(interactive = true) {
     if (!pendingSignIn) {
       connectionCheck++;
-      pendingSignIn = completeSignIn().finally(() => { pendingSignIn = undefined; });
+      pendingSignIn = completeSignIn(interactive).finally(() => { pendingSignIn = undefined; });
     }
     return pendingSignIn;
   }
@@ -192,29 +198,43 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       status('Copy the selected invite link and send it to your friend.');
     }
   };
-  join.onclick = async () => {
+  async function joinMatch(interactive) {
+    if (join.disabled) return;
     const current = ++generation;
+    let joined = false;
+    join.hidden = true;
     updateInviteControls(true);
     status('Verifying your Espresso Cash invitation…');
     try {
-      await signIn();
+      const connected = await signIn(interactive);
       if (current !== generation) return;
+      if (!connected) {
+        status('Connect with the Espresso account that accepted this invite.');
+        return;
+      }
       const route = '/rooms/' + encodeURIComponent(incoming.room);
       const { offer } = await request(route + '/join', 'POST', { invite: incoming.invite });
       if (current !== generation) return;
       await takeOffer(offer, async answer => {
         if (current === generation) await request(route + '/answer', 'POST', { answer });
       });
-      if (current === generation) status('Connecting to your friend…');
+      if (current === generation) {
+        joined = true;
+        status('Connecting to your friend…');
+      }
     } catch (error) {
       if (current === generation) {
         cancelPeer();
         status(explain(error));
       }
     } finally {
-      if (current === generation) updateInviteControls(false);
+      if (current === generation) {
+        join.hidden = joined;
+        updateInviteControls(false);
+      }
     }
-  };
+  }
+  join.onclick = () => joinMatch(true);
   connectButton.onclick = async () => {
     connectButton.disabled = true;
     status('');
@@ -225,13 +245,13 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   box.hidden = false;
   hostFields.hidden = isGuest;
   join.hidden = !isGuest;
-  if (window.EspressoConnect || document.readyState === 'complete') void refreshConnection();
-  else window.addEventListener('load', refreshConnection, { once: true });
+  if (!isGuest) void refreshConnection();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && window.EspressoConnect) void refreshConnection();
   });
   return {
     isGuest,
+    joinAccepted: () => joinMatch(false),
     reset() {
       generation++;
       const route = active;
@@ -240,6 +260,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       share.hidden = true;
       shareUrl.value = '';
       hostFields.hidden = isGuest;
+      join.hidden = !isGuest;
       updateInviteControls(false);
       status(isGuest ? 'Use the same Espresso account that accepted the invite.' : '');
     }

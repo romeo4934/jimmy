@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-delivery';
+import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-accept';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -275,7 +275,9 @@ function attach(connection, dataChannel) {
   if (peer !== connection) { dataChannel.close(); return; }
   channel = dataChannel;
   dataChannel.onopen = () => {
-    if (peer === connection) enter('Online match · You are Player ' + (view + 1) + '.');
+    if (peer !== connection) return;
+    enter('Online match · You are Player ' + (view + 1) + '.');
+    game.scrollIntoView({ block: 'start' });
   };
   dataChannel.onmessage = event => { if (peer === connection) receive(event.data); };
   dataChannel.onclose = () => {
@@ -508,4 +510,5 @@ function start() {
   enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);
 }
 start();
+if (espressoLobby.isGuest) void espressoLobby.joinAccepted();
 requestAnimationFrame(frame);
