@@ -1,3 +1,4 @@
+import { automaticEspresso, setupEspresso } from './espresso.js?v=invites-v2';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -23,6 +24,7 @@ let mode = 'lobby';
 let match = newMatch();
 let view = 0;
 let peer;
+let espressoPeer;
 let channel;
 let remote = neutral();
 let localShot = null;
@@ -170,6 +172,7 @@ document.querySelectorAll('[data-key]').forEach(button => {
 function lobby(message) {
   const previous = peer;
   peer = undefined;
+  espressoPeer = undefined;
   channel = undefined;
   previous?.close();
   mode = 'lobby';
@@ -182,8 +185,9 @@ function lobby(message) {
   sentInput = undefined;
   remote = neutral();
   byId('exchange').hidden = true;
+  espressoLobby.reset();
   byId('reset').hidden = true;
-  byId('host').hidden = false;
+  byId('host').hidden = automaticEspresso;
   byId('practice').hidden = byId('drill').hidden = false;
   byId('score').hidden = false;
   byId('drill-progress').hidden = true;
@@ -469,6 +473,39 @@ function frame(now) {
   byId('games').textContent = 'GAMES ' + match.games.join('–');
   requestAnimationFrame(frame);
 }
+const espressoLobby = setupEspresso({
+  async createOffer() {
+    if (peer) throw new Error('Leave the current match before inviting someone else.');
+    showSession('Preparing your Espresso match…');
+    const connection = espressoPeer = createPeer(0);
+    attach(connection, connection.createDataChannel('tennis'));
+    const offer = await gather(connection, await connection.createOffer());
+    if (peer !== connection) throw new Error('Match cancelled.');
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = 'invite=' + offer;
+    if (!automaticEspresso) showCode(url.href, 'Invite link', true);
+    return { offer, url: url.href };
+  },
+  async takeOffer(offer, sendAnswer) {
+    if (peer) throw new Error('Leave the current match before joining another.');
+    showSession('Joining Espresso match…');
+    const connection = espressoPeer = createPeer(1);
+    connection.ondatachannel = event => attach(connection, event.channel);
+    await connection.setRemoteDescription(decode(offer, 'offer'));
+    const answer = await gather(connection, await connection.createAnswer());
+    if (peer !== connection) throw new Error('Match cancelled.');
+    await sendAnswer(answer);
+  },
+  async applyAnswer(answer) {
+    if (!peer || view !== 0) throw new Error('Match cancelled.');
+    await peer.setRemoteDescription(decode(answer, 'answer'));
+  },
+  cancelPeer() {
+    if (espressoPeer && peer === espressoPeer) lobby('Ready for a new match.');
+  }
+});
+
 function start() {
   lobby();
   if (!invitation) enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A retro, two-player browser tennis game.">
 <title>Baseline Club</title>
-<link rel="stylesheet" href="./style.css?v=left-stick">
+<link rel="stylesheet" href="./style.css?v=espresso-invites">
 </head>
 <body>
 <main>
@@ -34,6 +34,22 @@
 <p id="status" role="status">Start a practice match or invite a friend to play online.</p>
 <button id="drill">3-ball return drill</button>
 <button id="practice">Practice vs CPU</button>
+<section id="espresso-invite" class="espresso-invite" aria-label="Play with Espresso Cash" hidden>
+<button id="espresso-connect" type="button">Connect Espresso Cash</button>
+<div id="espresso-host-fields">
+<label for="espresso-to">Friend’s Espresso Cash username</label>
+<input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username">
+<button id="espresso-send" type="button">Invite by Espresso username</button>
+<button id="espresso-link" type="button">Make an Espresso link</button>
+</div>
+<button id="espresso-join" type="button" hidden>Join Espresso match</button>
+<div id="espresso-share" hidden>
+<label for="espresso-share-url">Espresso invite link</label>
+<input id="espresso-share-url" type="text" readonly>
+<button id="espresso-copy" type="button">Copy Espresso link</button>
+</div>
+<p id="espresso-status" role="status"></p>
+</section>
 <button id="host">Create online invite</button>
 <button id="join" hidden>Accept online invite</button>
 <div id="exchange" hidden>
@@ -55,6 +71,7 @@
 </aside>
 </div>
 </main>
-<script type="module" src="./app.js?v=timing-flow"></script>
+<script async src="https://connect.brij.fi/sdk.js"></script>
+<script type="module" src="./app.js?v=espresso-invites"></script>
 </body>
 </html>

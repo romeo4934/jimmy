@@ -4,7 +4,15 @@
 
 Jeu de tennis rétro pour navigateur, avec entraînement contre le CPU et parties à deux sur invitation.
 
-Pour jouer avec un ami, ouvre **Setup → Create online invite** sur le site, partage le lien, puis colle le code que ton ami te renvoie et clique sur **Connect**.
+Pour jouer avec un ami, ouvre **Setup → Connect Espresso Cash**, puis **Invite by Espresso username**. Le destinataire ouvre son invitation dans Espresso Cash. Le jeu propose également **Create online invite** quand le serveur Espresso du jeu est absent.
+
+### Déploiement Espresso Cash
+
+1. Enregistrer l’origine du jeu dans [Espresso Connect Developers](https://connect.brij.fi/developers) et la faire vérifier. Pour GitHub Pages, l’origine est `https://romeo4934.github.io`. Le fichier de preuve doit être à la racine de cet hôte, dans `/.well-known/espresso.json`.
+2. Déployer `server/lobby.mjs` sur un service Node.js derrière HTTPS. Démarrage avec `node server/lobby.mjs`. Configurer `GAME_URL=https://romeo4934.github.io/jimmy/` et le secret **serveur** `ESPRESSO_API_KEY`. Le serveur utilise une seule instance et garde les invitations en mémoire pendant 15 minutes.
+3. Mettre l’URL HTTPS du serveur dans `online-config.js`. Les joueurs approuvent la connexion dans Espresso Cash. Le serveur vérifie l’identité de l’invité et son acceptation avant d’échanger automatiquement les informations de connexion. GitHub Pages héberge le jeu en mode statique.
+
+Sans serveur configuré, le navigateur peut envoyer une invitation Espresso quand le site est actif. L’échange de code du jeu demeure nécessaire dans ce mode.
 
 Pour lancer le jeu en local, exécuter `python3 -m http.server 8000` depuis ce dossier et ouvrir `http://localhost:8000`.
 

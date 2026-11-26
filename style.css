@@ -69,3 +69,7 @@ canvas{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-use
 @media (orientation:landscape) and (max-height:600px){
   .game .drill-progress{max-width:100px}
 }
+
+.espresso-invite{margin:12px 0;padding:12px;border:1px solid currentColor;border-radius:8px}
+.espresso-invite input{width:100%;box-sizing:border-box;margin:6px 0}
+.espresso-invite p:empty{display:none}
