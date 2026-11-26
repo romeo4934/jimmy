@@ -1,17 +1,7 @@
-# SNES Web Player
+# Baseline Club
 
-A single-page SNES player for the browser, with touch controls for phones
-(joystick on the left, buttons on the right). Emulation is done by the
-snes9x core compiled to WebAssembly, loaded from EmulatorJS.
+Jeu de tennis rétro pour navigateur, avec entraînement contre le CPU et parties à deux sur invitation.
 
-No game is included. Either:
+Pour lancer le jeu en local, exécuter `python3 -m http.server 8000` depuis ce dossier et ouvrir `http://localhost:8000`.
 
-- **Hosted page**: pick your own `.sfc` / `.smc` file; it is stored in your
-  browser (IndexedDB) and never uploaded.
-- **Local**: put a `rom.sfc` next to `index.html` and serve the folder:
-
-  ```bash
-  python3 -m http.server 8765
-  ```
-
-ROM files are git-ignored.
+Sur téléphone, jouer en paysage avec la manette à gauche. Maintenir Drive pour charger, puis relâcher pour frapper. Au clavier, utiliser les flèches ou WASD pour se déplacer, Z pour Drive et X pour Lob.

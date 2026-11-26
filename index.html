@@ -1,122 +1,60 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <title>SNES Web Player</title>
-  <style>
-    html, body {
-      margin: 0; height: 100%; background: #111; overflow: hidden;
-      overscroll-behavior: none; touch-action: none;
-      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
-    }
-    #game { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
-    .overlay {
-      display: none; position: fixed; inset: 0; background: #111; color: #eee;
-      font: 600 18px/1.4 system-ui, sans-serif; text-align: center;
-      align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 24px;
-    }
-    #picker { z-index: 99998; touch-action: auto; }
-    #picker p { margin: 0; font-weight: 400; font-size: 14px; color: #aaa; max-width: 32em; }
-    #picker label {
-      background: #2e7d32; color: #fff; padding: 14px 28px; border-radius: 10px; cursor: pointer;
-    }
-    #picker input { display: none; }
-    #rotate { z-index: 99999; }
-    @media (pointer: coarse) and (orientation: portrait) {
-      #rotate { display: flex; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A retro, two-player browser tennis game.">
+<title>Baseline Club</title>
+<link rel="stylesheet" href="./style.css?v=left-stick">
 </head>
 <body>
-  <div id="game"></div>
-  <div id="picker" class="overlay">
-    <label>Choose your SNES ROM<input id="file" type="file" accept=".sfc,.smc"></label>
-    <p>The file stays on this device: it is stored in your browser and never uploaded.</p>
+<main>
+<header><div class="brand"><span aria-hidden="true">◉</span> BASELINE CLUB</div><div class="edition">ONLINE TENNIS</div></header>
+<section class="title"><p>THE HARDCOURT SERIES</p><h1>Baseline<span> Club.</span></h1></section>
+<div class="layout">
+<section id="game" class="game" aria-label="Tennis match">
+<div id="score" class="score"><div><i></i><span class="score-name">PLAYER 1</span><strong id="p1">0</strong></div><span id="games">GAMES 0–0</span><div><i></i><span class="score-name">PLAYER 2</span><strong id="p2">0</strong></div></div>
+<div id="drill-progress" class="score drill-progress" role="status" hidden></div>
+<div class="court-toolbar"><span id="court-mode">PRACTICE</span><label class="power" for="power-meter">POWER <meter id="power-meter" min="0" max="100" value="0"></meter></label><div class="court-actions"><button id="match-setup" type="button" aria-label="Match setup">Setup</button><button id="fullscreen" type="button" aria-pressed="false">Fullscreen</button></div></div>
+<canvas id="court" tabindex="0" width="800" height="540" aria-label="Tennis court"></canvas>
+<div class="legend"><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>WASD</kbd> Move</span><span><kbd>Z</kbd> Hold for drive</span><span><kbd>X</kbd> Hold for lob</span></div>
+<div class="touch" aria-label="On-screen controls">
+  <div id="move-stick" class="move-stick" role="group" aria-label="Movement stick. Drag in any direction and lift to stop.">
+    <span class="stick-thumb" aria-hidden="true"></span>
   </div>
-  <div id="rotate" class="overlay">Rotate your phone to landscape</div>
-  <script>
-    // SNES emulator (snes9x core compiled to WASM) provided by EmulatorJS.
-    // No game is bundled: the ROM comes from a local rom.sfc next to this page
-    // (local dev server) or from a file the player picks, kept in IndexedDB.
-
-    const DB = "snes-web", STORE = "rom", KEY = "current";
-
-    function db() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB, 1);
-        req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    }
-    async function loadSaved() {
-      try {
-        const d = await db();
-        return await new Promise((resolve) => {
-          const req = d.transaction(STORE).objectStore(STORE).get(KEY);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => resolve(null);
-        });
-      } catch { return null; }
-    }
-    async function save(blob) {
-      try {
-        const d = await db();
-        d.transaction(STORE, "readwrite").objectStore(STORE).put(blob, KEY);
-      } catch { /* storage unavailable: the ROM just won't be remembered */ }
-    }
-    async function localRom() {
-      try {
-        const res = await fetch("rom.sfc", { method: "HEAD" });
-        return res.ok;
-      } catch { return false; }
-    }
-
-    function start(gameUrl) {
-      document.getElementById("picker").style.display = "none";
-      window.EJS_player = "#game";
-      window.EJS_core = "snes9x";
-      window.EJS_gameName = "game";
-      window.EJS_gameUrl = gameUrl;
-      window.EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
-      window.EJS_startOnLoaded = true;
-      window.EJS_color = "#2e7d32";
-
-      // Touch controls: joystick under the left thumb, action buttons under the right.
-      window.EJS_VirtualGamepadSettings = [
-        { type: "zone", location: "left", left: "50%", top: "50%",
-          joystickInput: false, inputValues: [4, 5, 6, 7], color: "white" },
-        { type: "button", text: "X", id: "x", location: "right", left: 40,           bold: true, input_value: 9 },
-        { type: "button", text: "Y", id: "y", location: "right",           top: 40,  bold: true, input_value: 1 },
-        { type: "button", text: "A", id: "a", location: "right", left: 81, top: 40,  bold: true, input_value: 8 },
-        { type: "button", text: "B", id: "b", location: "right", left: 40, top: 80,  bold: true, input_value: 0 },
-        { type: "button", text: "L", id: "l", location: "left",  left: 3,  top: -90, bold: true, block: true, input_value: 10 },
-        { type: "button", text: "R", id: "r", location: "right", right: 3, top: -90, bold: true, block: true, input_value: 11 },
-        { type: "button", text: "Start",  id: "start",  location: "center", left: 60, fontSize: 15, block: true, input_value: 3 },
-        { type: "button", text: "Select", id: "select", location: "center", left: -5, fontSize: 15, block: true, input_value: 2 }
-      ];
-
-      const s = document.createElement("script");
-      s.src = window.EJS_pathtodata + "loader.js";
-      document.body.appendChild(s);
-    }
-
-    (async () => {
-      if (await localRom()) return start("rom.sfc");
-      const saved = await loadSaved();
-      if (saved) return start(URL.createObjectURL(saved));
-      document.getElementById("picker").style.display = "flex";
-      document.getElementById("file").addEventListener("change", async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        await save(file);
-        start(URL.createObjectURL(file));
-      });
-    })();
-  </script>
+  <div id="shot-buttons" class="shot-buttons">
+    <button type="button" data-key="KeyX" aria-label="Hold to charge lob">Lob</button>
+    <button type="button" data-key="KeyZ" aria-label="Hold to charge drive or serve">Drive</button>
+  </div>
+</div>
+</section>
+<aside id="setup">
+<button id="back-to-court" type="button">Back to court</button>
+<p class="tag">PLAY</p><h2>Take the court</h2>
+<p id="status" role="status">Start a practice match or invite a friend to play online.</p>
+<button id="drill">3-ball return drill</button>
+<button id="practice">Practice vs CPU</button>
+<button id="host">Create online invite</button>
+<button id="join" hidden>Accept online invite</button>
+<div id="exchange" hidden>
+<label for="out" id="outLabel">Invite link</label>
+<textarea id="out" rows="2" readonly></textarea>
+<button id="copy">Copy</button>
+<div id="answerBox" hidden><label for="answer">Friend’s reply code</label><textarea id="answer" rows="2" placeholder="Paste reply code"></textarea><button id="connect">Connect</button></div>
+</div>
+<button id="reset" hidden>Back to lobby</button>
+<hr>
+<div class="playtest-controls">
+<label><input id="sound-enabled" type="checkbox" checked> Court sounds</label>
+<label><input id="log-enabled" type="checkbox"> Log my playtest on this device</label>
+<p id="log-status" role="status">Your log stays on this device until you share it.</p>
+<button id="export-log" type="button">Copy playtest log</button>
+<textarea id="playtest-report" aria-label="Playtest log" rows="5" readonly hidden></textarea>
+</div>
+<p class="rules">Hold Drive to charge. Move the stick sideways to aim or up and down to adjust lift on returns. In rallies, hold longer to fill the orange power segment. Release Drive to swing and move again. On a return, release just before the ball reaches you. On a serve, a strong sideways aim adds spin. Hold Lob for an automatic lob at contact.</p>
+</aside>
+</div>
+</main>
+<script type="module" src="./app.js?v=timing-flow"></script>
 </body>
 </html>
