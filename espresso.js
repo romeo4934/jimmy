@@ -1,9 +1,10 @@
+import { allowedPlayer, roster } from './store.js?v=roster';
+
 const byId = id => document.getElementById(id);
 const fixedGameTitle = 'Tennis at Baseline Club';
 const inviteOrigins = new Set(['https://connect.espressocash.com', 'https://connect.brij.fi']);
 const maxRoomMessageBytes = 16 * 1024;
-// The offer must remain available throughout the invite's lifetime.
-const inviteLifetime = 600;
+const inviteLifetime = 3600;
 
 function explain(error) {
   if (error?.code === 'site_not_registered' || error?.code === 'site_not_verified') {
@@ -20,35 +21,38 @@ function explain(error) {
   return error?.message || 'Could not complete the Espresso invitation.';
 }
 
-function readDescription(data, type) {
+function readSignal(data) {
   try {
-    const description = JSON.parse(data);
-    if (description?.type === type && typeof description.sdp === 'string' && description.sdp) {
-      return { type, sdp: description.sdp };
-    }
-  } catch { /* Ignore messages that are not WebRTC descriptions. */ }
+    const signal = JSON.parse(data);
+    if (!signal || typeof signal.attempt !== 'string' || !signal.attempt || signal.attempt.length > 64) return null;
+    if (signal.type === 'ready') return signal;
+    if (['offer', 'answer'].includes(signal.type) && typeof signal.round === 'string' && signal.round &&
+        signal.round.length <= 64 && typeof signal.sdp === 'string' && signal.sdp) return signal;
+  } catch { /* Ignore messages outside the match protocol. */ }
   return null;
 }
 
-async function sendDescription(room, description, options) {
-  const data = JSON.stringify(description);
+async function sendSignal(room, signal, to) {
+  const data = JSON.stringify(signal);
   if (new TextEncoder().encode(data).length > maxRoomMessageBytes) {
     throw new Error('The connection details are too large. Try again on another network.');
   }
-  await room.send(data, options);
+  await room.send(data, { to });
 }
 
-async function playerName(room, sender, fallback = 'Friend') {
-  const players = await room.players().catch(() => []);
-  const name = players.find(player => player.euid === sender)?.name;
-  return typeof name === 'string' && name.trim() ? name.trim().slice(0, 64) : fallback;
+async function roomPlayer(room, sender, selected, fallback = 'Friend') {
+  const players = await room.players();
+  const player = players.find(entry => entry.euid === sender);
+  const name = typeof player?.name === 'string' && player.name.trim() ? player.name.trim().slice(0, 64) : fallback;
+  const items = Array.isArray(player?.items) ? player.items : [];
+  return { name, appearance: allowedPlayer(selected, items, roster[1]) };
 }
 
-export function setupEspresso({ record, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer }) {
+export function setupEspresso({ record, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer, selectedPlayer }) {
   const params = new URLSearchParams(location.search);
   const incoming = params.get('espresso_invite');
   const legacyInvite = new URLSearchParams(location.hash.slice(1)).has('invite') || Boolean(incoming && params.has('room'));
-  const isGuest = legacyInvite || incoming !== null;
+  const isInvitePage = legacyInvite || incoming !== null;
   const box = byId('espresso-invite');
   const connectButton = byId('espresso-connect');
   const account = byId('espresso-account');
@@ -61,10 +65,10 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
   const shareUrl = byId('espresso-share-url');
   const join = byId('espresso-join');
   const status = text => { byId('espresso-status').textContent = text; };
-  let sdk, pendingSignIn, activeRoom, roomTimer;
+  let sdk, pendingSignIn, activeRoom, roomTimer, readyTimer;
   let needsConnection = false;
   let generation = 0, connectionCheck = 0;
-  if (isGuest) {
+  if (isInvitePage) {
     record(document.documentElement.dataset.espressoTicket === 'present'
       ? 'Invite opened with an Espresso connection ticket.'
       : 'Invite opened without an Espresso connection ticket.');
@@ -82,8 +86,8 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
   }
   function showConnection(connection) {
     needsConnection = !connection;
-    connectButton.hidden = isGuest || Boolean(connection);
-    if (isGuest) join.textContent = connection ? 'Retry joining' : 'Connect and join';
+    connectButton.hidden = isInvitePage || Boolean(connection);
+    if (isInvitePage) join.textContent = connection ? 'Retry joining' : 'Connect and join';
     account.hidden = !connection;
   }
   async function refreshConnection() {
@@ -133,6 +137,7 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
   }
   function closeRoom() {
     clearTimeout(roomTimer);
+    clearInterval(readyTimer);
     activeRoom?.close();
     activeRoom = undefined;
   }
@@ -141,8 +146,8 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     closeRoom();
     share.hidden = true;
     shareUrl.value = '';
-    hostFields.hidden = isGuest;
-    join.hidden = !isGuest || legacyInvite;
+    hostFields.hidden = isInvitePage;
+    join.hidden = !isInvitePage || legacyInvite;
     updateInviteControls(false);
     status(legacyInvite ? 'This invite was created before Espresso Rooms. Ask your friend for a new invite.' : '');
   }
@@ -153,23 +158,90 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     if (error?.code === 'not_connected') showConnection(null);
     status(explain(error));
   }
-  function waitForDescription(room, type, timeout, timeoutMessage, receive) {
-    let received = false;
-    roomTimer = setTimeout(() => {
-      if (activeRoom !== room) return;
-      record(type === 'offer' ? 'Timed out waiting for the host’s offer.' : 'Timed out waiting for the guest’s answer.');
-      failMatch(new Error(timeoutMessage));
-    }, timeout);
+  async function openRoom(inviteId, username = '') {
+    const room = activeRoom = client().room(inviteId);
+    const pending = [];
+    let receive;
+    let negotiation;
+    const isCurrent = current => activeRoom === room && negotiation === current;
+    function fail(error, current) {
+      if (isCurrent(current)) failMatch(error);
+    }
     room.onMessage(message => {
-      if (activeRoom !== room || received || typeof message.from !== 'string' || !message.from) return;
-      const description = readDescription(message.data, type);
-      if (!description) return;
-      received = true;
-      clearTimeout(roomTimer);
-      void receive(description, message.from).catch(error => {
-        if (activeRoom === room) failMatch(error);
-      });
+      if (activeRoom !== room) return;
+      if (receive) receive(message);
+      else pending.push(message);
     });
+    const me = await room.me();
+    const [host] = await room.players();
+    if (activeRoom !== room) return;
+    if (!me || !host?.euid) throw new Error('Espresso couldn’t find the players in this match.');
+    const isHost = me === host.euid;
+    const attempt = isHost ? null : crypto.randomUUID();
+    record(isHost ? 'Espresso room opened as host.' : 'Espresso room opened as guest.');
+    roomTimer = setTimeout(() => {
+      if (activeRoom === room) failMatch(new Error('Still waiting for the other player. Reopen the match from Espresso Cash.'));
+    }, inviteLifetime * 1000);
+
+    async function offerTo(current) {
+      const fallback = username ? '@' + username.replace(/^@/, '') : 'Friend';
+      const player = await roomPlayer(room, current.from, undefined, fallback);
+      if (!isCurrent(current)) return;
+      status(`${player.name} joined. Connecting…`);
+      record('Second player joined. Preparing a fresh WebRTC offer.');
+      const offer = await createOffer();
+      if (!isCurrent(current)) return;
+      await sendSignal(room, { ...offer, attempt: current.attempt, round: current.round, player: selectedPlayer() }, current.from);
+    }
+    async function acceptAnswer(signal, current) {
+      const fallback = username ? '@' + username.replace(/^@/, '') : 'Friend';
+      const player = await roomPlayer(room, current.from, signal.player, fallback);
+      if (!isCurrent(current)) return;
+      record('Guest answer received.');
+      await applyAnswer({ type: 'answer', sdp: signal.sdp }, player);
+    }
+    async function answerOffer(signal, current) {
+      const player = await roomPlayer(room, host.euid, signal.player);
+      if (!isCurrent(current)) return;
+      record('Fresh host offer received.');
+      status('Connecting to your friend…');
+      await takeOffer({ type: 'offer', sdp: signal.sdp }, player, async answer => {
+        if (!isCurrent(current)) return;
+        await sendSignal(room, { ...answer, attempt, round: current.round, player: selectedPlayer() }, host.euid);
+        if (isCurrent(current)) record('Answer sent to the host.');
+      });
+    }
+    receive = ({ from, data }) => {
+      if (typeof from !== 'string' || !from || from === me) return;
+      const signal = readSignal(data);
+      if (!signal) return;
+      if (isHost && signal.type === 'ready' && signal.attempt !== negotiation?.attempt) {
+        const current = negotiation = { from, attempt: signal.attempt, round: crypto.randomUUID() };
+        void offerTo(current).catch(error => fail(error, current));
+      } else if (isHost && signal.type === 'answer' && negotiation?.from === from && negotiation.round === signal.round &&
+                 negotiation.attempt === signal.attempt && !negotiation.answered) {
+        const current = negotiation;
+        current.answered = true;
+        void acceptAnswer(signal, current).catch(error => fail(error, current));
+      } else if (!isHost && from === host.euid && signal.type === 'offer' && signal.attempt === attempt && signal.round !== negotiation?.round) {
+        const current = negotiation = { round: signal.round };
+        void answerOffer(signal, current).catch(error => fail(error, current));
+      }
+    };
+    if (isHost) {
+      inviteReady();
+      // The newest retained ready message belongs to the most recent guest tab.
+      const ready = pending.findLast(message => message.from !== me && readSignal(message.data)?.type === 'ready');
+      if (ready) receive(ready);
+    } else {
+      status(`${host.name || 'Your friend'} was notified. Keep this tab open while they join.`);
+      const sendReady = () => sendSignal(room, { type: 'ready', attempt }, host.euid);
+      await sendReady();
+      if (activeRoom !== room) return;
+      readyTimer = setInterval(() => {
+        if (activeRoom === room) void sendReady().catch(error => record('Couldn’t refresh the ready signal.', error));
+      }, 120_000);
+    }
   }
 
   async function invite() {
@@ -191,9 +263,6 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
         status('Connect to Espresso Cash to send an invite.');
         return;
       }
-      record('Preparing the WebRTC offer.');
-      const offer = await createOffer();
-      if (current !== generation) return;
       const invite = await client().invite({
         ...(open ? { open: true } : { to: [username] }),
         room: crypto.randomUUID(), title: fixedGameTitle, url: location.origin + location.pathname,
@@ -202,23 +271,11 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
       if (current !== generation) return;
       if (!invite?.id) throw new Error('Espresso did not return a match room.');
       record(open ? 'Espresso share link created.' : 'Espresso username invite submitted.');
-      const room = activeRoom = client().room(invite.id);
-      await sendDescription(room, offer);
-      if (activeRoom !== room) return;
-      record('Offer sent to the Espresso room.');
       if (open) showShareLink(invite.link);
       hostFields.hidden = true;
-      inviteReady();
-      status(open ? 'Share this link and keep this tab open. The match starts when your friend joins.' :
-        'Espresso username invite submitted. Keep this tab open while your friend joins.');
-      waitForDescription(room, 'answer', inviteLifetime * 1000, 'This invite expired. Send a new one.', async (answer, from) => {
-        const name = await playerName(room, from, username ? '@' + username.replace(/^@/, '') : 'Friend');
-        if (activeRoom !== room) return;
-        record('Guest answer received.');
-        status('Connecting to your friend…');
-        await applyAnswer(answer, name);
-        if (activeRoom === room) closeRoom();
-      });
+      status(open ? 'Share this link. Espresso will notify you when your friend accepts.' :
+        'Espresso will notify you when your friend accepts.');
+      await openRoom(invite.id, username);
     } catch (error) {
       if (current === generation) failMatch(error);
     }
@@ -244,14 +301,14 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     }
     try {
       await navigator.clipboard.writeText(url);
-      status('Invite link copied. Send it to your friend and keep this tab open.');
+      status('Invite link copied. Espresso will notify you when your friend accepts.');
     } catch {
       shareUrl.select();
       status('Copy the selected invite link and send it to your friend.');
     }
   };
   async function joinMatch(interactive) {
-    if (!isGuest || legacyInvite || join.disabled) return;
+    if (!isInvitePage || legacyInvite || join.disabled) return;
     const current = ++generation;
     join.hidden = true;
     updateInviteControls(true);
@@ -269,24 +326,9 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
       const espresso = client();
       const inviteId = espresso.invitation();
       if (!/^inv_[\w-]+$/.test(inviteId ?? '')) throw new Error('Open the invite from Espresso Cash to join this match.');
-      const room = activeRoom = espresso.room(inviteId);
       record('Checking access to the Espresso room.');
-      status('Waiting for your friend’s game. Keep this tab open.');
-      waitForDescription(room, 'offer', 60_000, 'Still waiting for the host. Ask them to open their game tab, then try again.', async (offer, from) => {
-        const name = await playerName(room, from);
-        if (activeRoom !== room) return;
-        record('Host offer received.');
-        status('Connecting to your friend…');
-        await takeOffer(offer, name, async answer => {
-          if (activeRoom !== room) return;
-          await sendDescription(room, answer, { to: from });
-          if (activeRoom === room) record('Answer sent to the host.');
-        });
-        if (activeRoom === room) closeRoom();
-      });
-      // onMessage starts polling; awaiting me() also surfaces errors from the first poll.
-      await room.me();
-      if (current === generation) record('Espresso room access confirmed.');
+      status('Finding your match…');
+      await openRoom(inviteId);
     } catch (error) {
       if (current === generation) failMatch(error);
     }
@@ -303,10 +345,10 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     finally { connectButton.disabled = false; }
   };
   box.hidden = false;
-  hostFields.hidden = isGuest;
-  if (!isGuest || legacyInvite) void refreshConnection();
+  hostFields.hidden = isInvitePage;
+  if (!isInvitePage || legacyInvite) void refreshConnection();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && window.EspressoConnect) void refreshConnection();
   });
-  return { isGuest, joinAccepted: () => joinMatch(false), reset };
+  return { isInvitePage, joinAccepted: () => joinMatch(false), matchStarted: closeRoom, reset, client, signIn };
 }

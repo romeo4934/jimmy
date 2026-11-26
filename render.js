@@ -5,6 +5,81 @@ export function project(x, y, z = 0) {
   return [400 + 237 * x / depth, 235 + 166 * y / depth - 205 * z];
 }
 
+function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
+  const { shirt, trim, skin, hair, shorts, style } = player;
+  const rect = (color, x, y, w, h) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+  const ink = '#172a33';
+  const racketX = raised ? 27 : 21 + 8 * followThrough;
+  const racketY = raised ? -32 : -14 - 9 * followThrough;
+  ctx.save();
+  ctx.scale(direction, 1);
+  // Offset the feet and knees with the stride. Dark edges keep the pose readable across the net.
+  rect(ink, -12, -15, 9, 12 - stride);
+  rect(ink, 3, -14, 9, 11 + stride);
+  rect(skin, -11, -13, 6, 8 - stride);
+  rect(skin, 4, -12, 6, 7 + stride);
+  rect('#d7e2df', -12, -6 - stride, 6, 4);
+  rect('#d7e2df', 5, -5 + stride, 6, 4);
+  rect(ink, -15, -3 - stride, 10, 4);
+  rect(ink, 4, -2 + stride, 11, 4);
+  rect('#f5edd9', -14, -3 - stride, 8, 2);
+  rect('#f5edd9', 5, -2 + stride, 9, 2);
+  rect(ink, -9, -19, 18, 8);
+  rect(shorts, -8, -18, 7, 6);
+  rect(shorts, 1, -18, 7, 6);
+  rect(trim, -8, -15, 1, 3);
+  rect(ink, -11, -34, 21, 17);
+  rect(shirt, -10, -33, 19, 15);
+  rect(trim, -9, -32, 17, 3);
+  rect(trim, -7, -23, 4, 4);
+  rect(skin, -13, -29, 4, 9);
+  rect('#f5edd9', -13, -22, 4, 2);
+  rect(skin, -4, -36, 8, 5);
+  rect(ink, -7, -46, 14, 13);
+  rect(skin, -5, -44, 11, 10);
+  rect(hair, -6, -46, 12, 4);
+  rect(hair, -6, -43, 3, 5);
+  rect(ink, 3, -40, 2, 1);
+  if (style === 'ponytail') {
+    rect(hair, -9, -43, 4, 8);
+    rect(trim, -8, -43, 2, 2);
+  } else if (style === 'curls') {
+    rect(hair, -7, -47, 4, 5);
+    rect(hair, -2, -49, 5, 5);
+    rect(hair, 3, -48, 4, 5);
+  } else if (style === 'visor') {
+    rect(trim, -6, -45, 12, 3);
+    rect('#fff0c4', 5, -44, 4, 2);
+  }
+  ctx.beginPath();
+  ctx.moveTo(8, -28);
+  ctx.lineTo(13, -23);
+  ctx.lineTo(racketX - 4, racketY + 1);
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  ctx.strokeStyle = skin;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.translate(racketX, racketY);
+  ctx.rotate(.43);
+  rect(ink, -2, 3, 4, 9);
+  rect(trim, -6, -8, 12, 14);
+  rect('#304d51', -4, -6, 8, 10);
+  rect('#e5e7cd', -3, -5, 1, 8);
+  rect('#e5e7cd', 1, -5, 1, 8);
+  rect('#e5e7cd', -3, -3, 6, 1);
+  rect('#e5e7cd', -3, 0, 6, 1);
+  ctx.restore();
+}
+
+export function drawPlayerPreview(canvas, player) {
+  const ctx = canvas.getContext('2d');
+  ctx.translate(51, 85);
+  ctx.scale(1.6, 1.6);
+  drawAthlete(ctx, player, 2, true, 0, 1);
+}
+
 export function makeRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
@@ -21,28 +96,17 @@ export function makeRenderer(canvas) {
     ctx.beginPath(); ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
     ctx.fillStyle = fill; ctx.fill();
   };
-  function player(p, index, view, stateToss) {
+  function player(p, index, view, stateToss, appearance) {
     const [x, y] = project(...flip(p.x, p.y, view));
     const stride = p.vx || p.vy ? Math.round(3 * Math.sin((p.x + p.y) * 46)) : 0;
     const scale = index === view ? 1.48 : 1.15;
     ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(scale, scale);
-    ellipse(0, 0, 14, 5, '#142d3280');
-    const color = index ? '#ffab91' : '#eef595';
-    const racketRaised = p.charge || stateToss || p.stroke && !p.swing;
+    ellipse(0, 0, 15, 5, '#142d3280');
+    const raised = p.charge || stateToss || p.stroke && !p.swing;
     const followThrough = p.swing > 6 ? (p.power ?? 0) : 0;
-    const racketX = racketRaised ? 27 : p.swing > 6 ? 29 + 9 * followThrough : 21;
-    const racketY = racketRaised ? -31 : p.swing > 6 ? -21 - 7 * followThrough : -13;
-    const rect = (color, x, y, w, h) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
-    rect('#1a3035', -8,-16,16,8); rect('#efb58a',-7,-8-stride,5,6); rect('#efb58a',2,-8+stride,5,6);
-    rect('#fff8dc',-9,-3-stride,7,3); rect('#fff8dc',2,-3+stride,7,3);
-    rect(color,-9,-29,18,13); rect('#efb58a',-5,-38,10,9); rect('#304348',-6,-40,12,4);
-    const racketSide = (p.stroke === 'backhand' ? -1 : 1) * (index === view ? 1 : -1);
-    ctx.scale(racketSide,1);
-    rect('#efb58a',-12,-24,4,8);
-    shape([[8,-25],[13,-19],[racketX-4,racketY-2]],null,'#efb58a',4);
-    ctx.save(); ctx.translate(racketX,racketY);
-    ctx.rotate(.45); ctx.strokeStyle = '#fbf2dd'; ctx.lineWidth = 2; ctx.strokeRect(-4,-6,8,12);
-    ctx.restore(); ctx.restore();
+    const direction = (p.stroke === 'backhand' ? -1 : 1) * (index === view ? 1 : -1);
+    drawAthlete(ctx, appearance, stride, raised, followThrough, direction);
+    ctx.restore();
   }
   function ball(b, view) {
     const position = flip(b.x,b.y,view);
@@ -81,7 +145,7 @@ export function makeRenderer(canvas) {
       ctx.fillStyle = '#f8f6dd'; ctx.fillRect(left+26,top+2,1,6);
     }
   }
-  return (state, view, active, destination, maxPower) => {
+  return (state, view, active, destination, maxPower, ownPlayer, opponentPlayer) => {
     ctx.fillStyle = '#254b43'; ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle = '#172f34'; ctx.fillRect(0,0,800,48);
     for (let x = -8; x < 800; x += 24) {
@@ -94,7 +158,7 @@ export function makeRenderer(canvas) {
     quad(-1,-1,1,1,'#305d83','#e4ece4');
     quad(-1,-.54,1,.54,'#326287','#e4ece4');
     shape([project(0,-.54),project(0,.54)],null,'#ecebd0');
-    player(state.players[1-view],1-view,view,state.toss && state.server === 1-view);
+    player(state.players[1-view],1-view,view,state.toss && state.server === 1-view, opponentPlayer);
     const b = state.ball || state.toss;
     const far = b && flip(b.x,b.y,view)[1] < 0;
     if (far) ball(b,view);
@@ -112,7 +176,7 @@ export function makeRenderer(canvas) {
     }
     const p = state.players[view];
     const [x, feet] = project(...flip(p.x, p.y, view));
-    player(p,view,view,state.toss && state.server === view);
+    player(p,view,view,state.toss && state.server === view, ownPlayer);
     if (b && !far) ball(b,view);
     if (active) {
       if (state.drill && p.stroke && !p.swing) {

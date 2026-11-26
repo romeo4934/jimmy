@@ -6,7 +6,9 @@ Jeu de tennis rétro pour navigateur, avec entraînement contre le CPU et partie
 
 Pour jouer avec un ami, ouvre **Setup**. Clique sur **Connect Espresso Cash** si le bouton apparaît, puis sur **Create invite link**. Tu peux aussi choisir **Espresso username** pour envoyer l’invitation directement dans l’app de ton ami. La page hébergée par Espresso permet à ton ami d’installer l’app et de rejoindre ton invitation. Le jeu reconnaît une session enregistrée dans ce navigateur. Le bouton **Accept and play** dans Espresso Cash connecte automatiquement l’invité au jeu.
 
-[Espresso Rooms](https://docs.espressocash.com/#rooms) transmet les informations de connexion entre les deux navigateurs. Le match démarre après **Accept and play**, puis les échanges du jeu passent directement par WebRTC. Garde l’onglet de l’invitant ouvert et accepte l’invitation dans les dix minutes.
+[Espresso Rooms](https://docs.espressocash.com/#rooms) transmet les informations de connexion entre les deux navigateurs. Le match démarre après **Accept and play**, puis les échanges du jeu passent directement par WebRTC. Les invitations sont valables une heure. Espresso avertit l’invitant quand son ami accepte. La notification rouvre le match, même si l’onglet initial a été fermé.
+
+**Players & Store** propose Alex et Mika gratuitement, puis Jade et Sol à 0,10 USDC chacun. Espresso conserve les achats et vérifie les tenues payantes dans les parties en ligne. Les joueurs ont les mêmes caractéristiques de jeu. Pour activer le paiement, le propriétaire du site doit choisir **Pay me in this wallet** dans Espresso Connect Developers.
 
 ### Déploiement Espresso Cash
 

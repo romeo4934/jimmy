@@ -84,3 +84,18 @@ canvas{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-use
 .connection-log textarea{font:0.8rem/1.5 ui-monospace,monospace}
 .connection-log button{width:auto}
 .connection-log p{margin:0;font-size:.85rem}
+
+.store{width:min(640px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;margin:auto;padding:20px;border:1px solid var(--line);border-radius:14px;background:#fbf9ed;color:var(--ink)}
+.store::backdrop{background:#102c2999}
+.store-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.store-heading h2,.store-heading button{margin:0}
+.store-heading button{background:transparent}
+.store p{margin:0 0 12px;font-size:.9rem}
+#store-status:empty{display:none}
+.store-roster{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}
+.store-roster article{min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px}
+.store-roster canvas{width:100%;height:76px;object-fit:contain;background:#254b43;border-radius:4px}
+.store-roster h3{margin:6px 0 0}
+.store-roster p{margin:2px 0 7px}
+.store-roster button{margin:0;padding:6px 4px}
+@media (min-width:570px){.store-roster{grid-template-columns:repeat(4,minmax(0,1fr))}}

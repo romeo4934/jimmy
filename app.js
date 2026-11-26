@@ -1,6 +1,7 @@
-import { setupEspresso } from './espresso.js?v=rooms-diagnostics';
+import { setupEspresso } from './espresso.js?v=roster';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
-import { makeRenderer } from './render.js?v=lift-drive';
+import { drawPlayerPreview, makeRenderer } from './render.js?v=roster';
+import { roster, setupStore } from './store.js?v=roster';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -29,6 +30,8 @@ let view = 0;
 let peer;
 let peerTimer;
 let opponentName = 'Friend';
+let ownPlayer = roster[0];
+let opponentPlayer = roster[1];
 let channel;
 let remote = neutral();
 let localShot = null;
@@ -172,15 +175,20 @@ document.querySelectorAll('[data-key]').forEach(button => {
   }
 });
 
-function lobby(message) {
+function closePeer() {
   clearTimeout(peerTimer);
   const previous = peer;
   peer = undefined;
   channel = undefined;
   previous?.close();
+}
+
+function lobby(message) {
+  closePeer();
   mode = 'lobby';
   courtMode.textContent = 'LOBBY';
   opponentName = 'Friend';
+  opponentPlayer = roster[1];
   view = 0;
   match = newMatch();
   keys.clear();
@@ -190,11 +198,12 @@ function lobby(message) {
   remote = neutral();
   espressoLobby.reset();
   espressoPanel.hidden = false;
-  byId('reset').hidden = !espressoLobby.isGuest;
+  byId('open-store').hidden = false;
+  byId('reset').hidden = !espressoLobby.isInvitePage;
   byId('practice').hidden = byId('drill').hidden = false;
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
-  byId('status').textContent = message || (espressoLobby.isGuest ? '' : 'Start a practice match or invite a friend to play online.');
+  byId('status').textContent = message || (espressoLobby.isInvitePage ? '' : 'Start a practice match or invite a friend to play online.');
 }
 
 function enter(message, focus = true, drill = false) {
@@ -217,6 +226,8 @@ function enter(message, focus = true, drill = false) {
 }
 
 function showSession(message) {
+  mode = 'lobby';
+  byId('open-store').hidden = true;
   match = newMatch();
   courtMode.textContent = 'PREPARING MATCH';
   byId('score').hidden = true;
@@ -277,6 +288,7 @@ function attach(connection, dataChannel) {
     if (peer !== connection) return;
     clearTimeout(peerTimer);
     recordConnection('WebRTC data channel opened. Match started.');
+    espressoLobby.matchStarted();
     espressoPanel.hidden = true;
     enter('Online match · You vs ' + opponentName + '.');
     game.scrollIntoView({ block: 'start' });
@@ -301,6 +313,7 @@ function waitForPeer(connection) {
 }
 
 function createPeer(index) {
+  closePeer();
   view = index;
   const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
   peer = connection;
@@ -341,7 +354,7 @@ byId('export-log').onclick = async () => {
 };
 refreshLog();
 byId('reset').onclick = () => {
-  if (espressoLobby.isGuest) location.assign(location.pathname);
+  if (espressoLobby.isInvitePage) location.assign(location.pathname);
   else start();
 };
 
@@ -423,7 +436,7 @@ function frame(now) {
   const p = match.players[view];
   const serving = match.server === view && (match.toss || p.swing && match.lastShots?.[view]?.serve);
   const maxPower = serving ? 1 : maxRallyPower;
-  render(match, view, active, active ? drivePreview(match, view, localInput()) : null, maxPower);
+  render(match, view, active, active ? drivePreview(match, view, localInput()) : null, maxPower, ownPlayer, opponentPlayer);
   if (match.drill && byId('drill-progress').textContent !== match.call) {
     byId('drill-progress').textContent = match.call;
   }
@@ -438,9 +451,10 @@ function frame(now) {
 }
 const espressoLobby = setupEspresso({
   record: recordConnection,
+  selectedPlayer: () => ownPlayer.id,
   async createOffer() {
-    if (peer) throw new Error('Leave the current match before inviting someone else.');
-    showSession('Preparing your Espresso match…');
+    showSession('Your friend joined. Connecting…');
+    courtMode.textContent = 'FRIEND JOINED';
     const connection = createPeer(0);
     attach(connection, connection.createDataChannel('tennis'));
     const offer = await gather(connection, await connection.createOffer());
@@ -448,13 +462,13 @@ const espressoLobby = setupEspresso({
     return offer;
   },
   inviteReady() {
-    byId('status').textContent = '';
+    showSession('');
     courtMode.textContent = 'WAITING FOR FRIEND';
   },
-  async takeOffer(offer, name, sendAnswer) {
-    if (peer) throw new Error('Leave the current match before joining another.');
+  async takeOffer(offer, opponent, sendAnswer) {
     showSession('Joining Espresso match…');
-    opponentName = name;
+    opponentName = opponent.name;
+    opponentPlayer = opponent.appearance;
     const connection = createPeer(1);
     connection.ondatachannel = event => attach(connection, event.channel);
     await connection.setRemoteDescription(offer);
@@ -464,22 +478,23 @@ const espressoLobby = setupEspresso({
     if (peer === connection && mode === 'connecting') courtMode.textContent = 'CONNECTING TO FRIEND';
     waitForPeer(connection);
   },
-  async applyAnswer(answer, name) {
+  async applyAnswer(answer, opponent) {
     const connection = peer;
     if (!connection || view !== 0) throw new Error('Match cancelled.');
-    opponentName = name;
+    opponentName = opponent.name;
+    opponentPlayer = opponent.appearance;
     courtMode.textContent = 'CONNECTING TO FRIEND';
     await connection.setRemoteDescription(answer);
     waitForPeer(connection);
   },
   cancelPeer() {
-    if (peer) lobby('Ready for a new match.');
+    if (peer || byId('open-store').hidden) lobby('Ready for a new match.');
   }
 });
 
 function start() {
   lobby();
-  if (espressoLobby.isGuest) {
+  if (espressoLobby.isInvitePage) {
     if (matchMedia('(max-width: 740px), (orientation: landscape) and (max-height: 600px)').matches) {
       byId('setup').scrollIntoView({ block: 'start' });
     }
@@ -488,5 +503,11 @@ function start() {
   enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);
 }
 start();
-if (espressoLobby.isGuest) void espressoLobby.joinAccepted();
+if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();
+setupStore({
+  client: espressoLobby.client,
+  signIn: espressoLobby.signIn,
+  drawPreview: drawPlayerPreview,
+  setPlayer(player) { ownPlayer = player; }
+});
 requestAnimationFrame(frame);
