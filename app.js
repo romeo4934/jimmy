@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-session';
+import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-lobby';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -187,7 +187,6 @@ function lobby(message) {
   byId('exchange').hidden = true;
   espressoLobby.reset();
   byId('reset').hidden = true;
-  byId('host').hidden = automaticEspresso;
   byId('practice').hidden = byId('drill').hidden = false;
   byId('score').hidden = false;
   byId('drill-progress').hidden = true;
@@ -219,7 +218,7 @@ function enter(message, focus = true, drill = false) {
 function showSession(message) {
   byId('court-mode').textContent = 'ONLINE LOBBY';
   byId('status').textContent = message;
-  byId('host').hidden = byId('practice').hidden = byId('drill').hidden = byId('join').hidden = true;
+  byId('practice').hidden = byId('drill').hidden = byId('join').hidden = true;
   byId('reset').hidden = false;
 }
 
@@ -297,12 +296,15 @@ function createPeer(index) {
   return connection;
 }
 
-function showCode(value, label, isHost) {
-  byId('out').value = value;
-  byId('outLabel').textContent = label;
-  byId('exchange').hidden = false;
+function showReplyExchange(code) {
+  const isHost = code === undefined;
+  byId('replyBox').hidden = isHost;
   byId('answerBox').hidden = !isHost;
-  byId('copy').textContent = 'Copy';
+  if (!isHost) {
+    byId('out').value = code;
+    byId('copy').textContent = 'Copy';
+  }
+  byId('exchange').hidden = false;
 }
 
 byId('practice').onclick = () => {
@@ -327,22 +329,6 @@ byId('export-log').onclick = async () => {
   }
 };
 refreshLog();
-byId('host').onclick = async () => {
-  showSession('Creating invite…');
-  let connection;
-  try {
-    connection = createPeer(0);
-    attach(connection, connection.createDataChannel('tennis'));
-    const code = await gather(connection, await connection.createOffer());
-    if (peer !== connection) return;
-    const url = new URL(location.href);
-    url.hash = 'invite=' + code;
-    showCode(url.href, 'Invite link', true);
-    byId('status').textContent = 'Send this link to your friend. Keep this tab open and paste their reply code below.';
-  } catch {
-    if (peer === connection) lobby('Could not create an invite. Please try again.');
-  }
-};
 byId('join').onclick = async () => {
   showSession('Preparing reply code…');
   let connection;
@@ -352,7 +338,7 @@ byId('join').onclick = async () => {
     await connection.setRemoteDescription(decode(invitation, 'offer'));
     const code = await gather(connection, await connection.createAnswer());
     if (peer !== connection) return;
-    showCode(code, 'Reply code', false);
+    showReplyExchange(code);
     byId('status').textContent = 'Send this reply code to the host and keep this tab open.';
   } catch {
     if (peer === connection) lobby('Could not accept this invite. Ask your friend for a fresh link.');
@@ -484,7 +470,10 @@ const espressoLobby = setupEspresso({
     const url = new URL(location.href);
     url.search = '';
     url.hash = 'invite=' + offer;
-    if (!automaticEspresso) showCode(url.href, 'Invite link', true);
+    if (!automaticEspresso) {
+      byId('status').textContent = '';
+      showReplyExchange();
+    }
     return { offer, url: url.href };
   },
   async takeOffer(offer, sendAnswer) {

@@ -31,35 +31,30 @@
 <aside id="setup">
 <button id="back-to-court" type="button">Back to court</button>
 <p class="tag">PLAY</p><h2>Take the court</h2>
-<p id="status" role="status">Start a practice match or invite a friend to play online.</p>
-<button id="drill">3-ball return drill</button>
-<button id="practice">Practice vs CPU</button>
 <section id="espresso-invite" class="espresso-invite" aria-label="Play with Espresso Cash" hidden>
 <button id="espresso-connect" type="button" hidden>Connect Espresso Cash</button>
 <p id="espresso-account" role="status" hidden>Connected to Espresso Cash</p>
-<div id="espresso-host-fields">
+<form id="espresso-host-fields">
 <label for="espresso-to">Friend’s Espresso Cash username</label>
 <input id="espresso-to" type="text" autocomplete="off" autocapitalize="none" maxlength="64" placeholder="@username">
-<button id="espresso-send" type="button">Invite by Espresso username</button>
-<button id="espresso-link" type="button">Make an Espresso link</button>
-</div>
+<button id="espresso-send" type="submit">Invite friend</button>
+</form>
 <button id="espresso-join" type="button" hidden>Join Espresso match</button>
-<div id="espresso-share" hidden>
-<label for="espresso-share-url">Espresso invite link</label>
-<input id="espresso-share-url" type="text" readonly>
-<button id="espresso-copy" type="button">Copy Espresso link</button>
-</div>
 <p id="espresso-status" role="status"></p>
 </section>
-<button id="host">Create online invite</button>
+<p id="status" role="status">Start a practice match or invite a friend to play online.</p>
 <button id="join" hidden>Accept online invite</button>
 <div id="exchange" hidden>
-<label for="out" id="outLabel">Invite link</label>
+<div id="replyBox" hidden>
+<label for="out">Reply code</label>
 <textarea id="out" rows="2" readonly></textarea>
 <button id="copy">Copy</button>
-<div id="answerBox" hidden><label for="answer">Friend’s reply code</label><textarea id="answer" rows="2" placeholder="Paste reply code"></textarea><button id="connect">Connect</button></div>
+</div>
+<div id="answerBox" hidden><label for="answer">Friend’s reply code</label><textarea id="answer" rows="2" placeholder="Paste reply code"></textarea><button id="connect">Start match</button></div>
 </div>
 <button id="reset" hidden>Back to lobby</button>
+<button id="drill">3-ball return drill</button>
+<button id="practice">Practice vs CPU</button>
 <hr>
 <div class="playtest-controls">
 <label><input id="sound-enabled" type="checkbox" checked> Court sounds</label>
@@ -73,6 +68,6 @@
 </div>
 </main>
 <script async src="https://connect.espressocash.com/sdk.js"></script>
-<script type="module" src="./app.js?v=espresso-session"></script>
+<script type="module" src="./app.js?v=espresso-lobby"></script>
 </body>
 </html>

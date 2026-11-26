@@ -4,8 +4,6 @@ export const automaticEspresso = lobbyApi !== '';
 const byId = id => document.getElementById(id);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const fixedGameTitle = 'Tennis at Baseline Club';
-// Espresso can still issue links on its former domain during the migration.
-const inviteOrigins = new Set(['https://connect.espressocash.com', 'https://connect.brij.fi']);
 
 function explain(error) {
   if (error?.code === 'site_not_registered' || error?.code === 'site_not_verified') {
@@ -26,7 +24,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
   const connectButton = byId('espresso-connect');
   const account = byId('espresso-account');
   const send = byId('espresso-send');
-  const share = byId('espresso-link');
+  const hostFields = byId('espresso-host-fields');
   const join = byId('espresso-join');
   const status = text => { byId('espresso-status').textContent = text; };
   let sdk, connectionId, credential, active, pendingSignIn;
@@ -84,26 +82,18 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     }
     return pendingSignIn;
   }
-  function showLink(value) {
-    const url = new URL(value);
-    if (!inviteOrigins.has(url.origin)) throw new Error('Espresso did not return a share link.');
-    const field = byId('espresso-share-url');
-    field.value = url.href;
-    byId('espresso-share').hidden = false;
-  }
   function busy(value) {
-    send.disabled = share.disabled = join.disabled = value;
+    send.disabled = join.disabled = value;
   }
 
-  async function invite(open) {
+  async function invite() {
     const username = byId('espresso-to').value.trim();
-    if (!open && (!username || /[\s,]/.test(username))) {
+    if (!username || /[\s,]/.test(username)) {
       status('Enter your friend’s Espresso Cash @username.');
       return;
     }
     const current = ++generation;
     busy(true);
-    byId('espresso-share').hidden = true;
     status('Preparing your Espresso invitation…');
     try {
       await signIn();
@@ -111,23 +101,18 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       const { offer, url } = await createOffer();
       if (current !== generation) return;
       if (!automaticEspresso) {
-        const delivered = await sdk.invite({
-          ...(open ? { open: true } : { to: [username] }), room: crypto.randomUUID(),
-          title: fixedGameTitle, url, maxPlayers: 2
-        });
+        await sdk.invite({ to: [username], room: crypto.randomUUID(), title: fixedGameTitle, url, maxPlayers: 2 });
         if (current !== generation) return;
-        if (open) showLink(delivered.link);
-        status('Espresso invitation submitted. When your friend opens the game, paste the reply code they send you.');
+        status('Invitation submitted. Keep this tab open and paste your friend’s reply code when they send it.');
         return;
       }
-      const created = await request('/rooms', 'POST', { username, open, offer });
+      const created = await request('/rooms', 'POST', { username, offer });
       const route = '/rooms/' + encodeURIComponent(created.room);
       if (current !== generation) {
         await request(route, 'DELETE');
         return;
       }
       active = route;
-      if (open) showLink(created.link);
       status('Invitation submitted. Keep this tab open while your friend accepts in Espresso Cash.');
       const deadline = Date.now() + 900000;
       while (current === generation && Date.now() < deadline) {
@@ -151,8 +136,10 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     }
   }
 
-  send.onclick = () => invite(false);
-  share.onclick = () => invite(true);
+  hostFields.onsubmit = event => {
+    event.preventDefault();
+    void invite();
+  };
   join.onclick = async () => {
     const current = ++generation;
     busy(true);
@@ -183,18 +170,8 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
     catch (error) { status(explain(error)); }
     finally { connectButton.disabled = false; }
   };
-  byId('espresso-copy').onclick = async () => {
-    const field = byId('espresso-share-url');
-    try {
-      await navigator.clipboard.writeText(field.value);
-      status('Espresso link copied.');
-    } catch {
-      field.select();
-      status('Copy the selected link.');
-    }
-  };
   box.hidden = false;
-  byId('espresso-host-fields').hidden = isGuest;
+  hostFields.hidden = isGuest;
   join.hidden = !isGuest;
   if (window.EspressoConnect || document.readyState === 'complete') void refreshConnection();
   else window.addEventListener('load', refreshConnection, { once: true });
@@ -207,7 +184,6 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       const route = active;
       active = undefined;
       if (route) void request(route, 'DELETE').catch(() => {});
-      byId('espresso-share').hidden = true;
       busy(false);
       status(isGuest ? 'Use the same Espresso account that accepted the invite.' : '');
     }
