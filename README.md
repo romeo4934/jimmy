@@ -6,13 +6,11 @@ Jeu de tennis rétro pour navigateur, avec entraînement contre le CPU et partie
 
 Pour jouer avec un ami, ouvre **Setup**. Clique sur **Connect Espresso Cash** si le bouton apparaît, puis sur **Create invite link**. Tu peux aussi choisir **Espresso username** pour envoyer l’invitation directement dans l’app de ton ami. La page hébergée par Espresso permet à ton ami d’installer l’app et de rejoindre ton invitation. Le jeu reconnaît une session enregistrée dans ce navigateur. Le bouton **Accept and play** dans Espresso Cash connecte automatiquement l’invité au jeu.
 
+[Espresso Rooms](https://docs.espressocash.com/#rooms) transmet les informations de connexion entre les deux navigateurs. Le match démarre après **Accept and play**, puis les échanges du jeu passent directement par WebRTC. Garde l’onglet de l’invitant ouvert et accepte l’invitation dans les dix minutes.
+
 ### Déploiement Espresso Cash
 
-1. Enregistrer l’origine du jeu dans [Espresso Connect Developers](https://connect.espressocash.com/developers) et la faire vérifier. Pour GitHub Pages, l’origine est `https://romeo4934.github.io`. Le fichier de preuve doit être à la racine de cet hôte, dans `/.well-known/espresso.json`.
-2. Déployer `server/lobby.mjs` sur un service Node.js derrière HTTPS. Démarrage avec `node server/lobby.mjs`. Configurer `GAME_URL=https://romeo4934.github.io/jimmy/` et le secret **serveur** `ESPRESSO_API_KEY`. Le serveur utilise une seule instance et garde les invitations en mémoire pendant 15 minutes.
-3. Mettre l’URL HTTPS du serveur dans `online-config.js`. Après **Accept and play**, le jeu rejoint automatiquement le match. Le serveur vérifie l’identité de l’invité et son acceptation avant d’échanger les informations de connexion. GitHub Pages héberge le jeu en mode statique.
-
-Sans serveur configuré, le navigateur peut envoyer une invitation Espresso quand le site est actif. Ton ami te renvoie le code affiché dans le jeu. Colle-le dans **Friend’s reply code**, puis clique sur **Start match**.
+Enregistrer l’origine du jeu dans [Espresso Connect Developers](https://connect.espressocash.com/developers) et la faire vérifier. Pour GitHub Pages, l’origine est `https://romeo4934.github.io`. Le fichier de preuve doit être à la racine de cet hôte, dans `/.well-known/espresso.json`. GitHub Pages héberge tous les fichiers du jeu, et le SDK Espresso gère les invitations et les rooms depuis le navigateur.
 
 Pour lancer le jeu en local, exécuter `python3 -m http.server 8000` depuis ce dossier et ouvrir `http://localhost:8000`.
 

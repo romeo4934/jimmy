@@ -54,15 +54,6 @@
 <p id="espresso-status" role="status"></p>
 </section>
 <p id="status" role="status">Start a practice match or invite a friend to play online.</p>
-<button id="join" hidden>Join match</button>
-<div id="exchange" hidden>
-<div id="replyBox" hidden>
-<label for="out">Reply code</label>
-<textarea id="out" rows="2" readonly></textarea>
-<button id="copy">Copy</button>
-</div>
-<div id="answerBox" hidden><label for="answer">Friend’s reply code</label><textarea id="answer" rows="2" placeholder="Paste reply code"></textarea><button id="connect">Start match</button></div>
-</div>
 <button id="reset" hidden>Back to lobby</button>
 <button id="drill">3-ball return drill</button>
 <button id="practice">Practice vs CPU</button>
@@ -78,7 +69,7 @@
 </aside>
 </div>
 </main>
-<script defer src="https://connect.espressocash.com/sdk.js?v=invite-tickets"></script>
-<script type="module" src="./app.js?v=match-status"></script>
+<script defer src="https://connect.espressocash.com/sdk.js?v=rooms"></script>
+<script type="module" src="./app.js?v=rooms"></script>
 </body>
 </html>

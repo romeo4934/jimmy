@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=match-status';
+import { setupEspresso } from './espresso.js?v=rooms';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -26,7 +26,6 @@ let mode = 'lobby';
 let match = newMatch();
 let view = 0;
 let peer;
-let espressoPeer;
 let opponentName = 'Friend';
 let channel;
 let remote = neutral();
@@ -37,7 +36,6 @@ let remoteShot = null;
 let sentInput;
 let tick = 0;
 let nextFrame = 0;
-const invitation = new URLSearchParams(location.hash.slice(1)).get('invite');
 
 function press(key) {
   if (!keys.has(key) && (key === 'KeyZ' || key === 'KeyX')) {
@@ -175,7 +173,6 @@ document.querySelectorAll('[data-key]').forEach(button => {
 function lobby(message) {
   const previous = peer;
   peer = undefined;
-  espressoPeer = undefined;
   channel = undefined;
   previous?.close();
   mode = 'lobby';
@@ -188,19 +185,13 @@ function lobby(message) {
   localShot = remoteShot = null;
   sentInput = undefined;
   remote = neutral();
-  byId('exchange').hidden = true;
   espressoLobby.reset();
-  espressoPanel.hidden = Boolean(invitation);
-  byId('reset').hidden = true;
+  espressoPanel.hidden = false;
+  byId('reset').hidden = !espressoLobby.isGuest;
   byId('practice').hidden = byId('drill').hidden = false;
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
-  byId('join').hidden = !invitation;
-  byId('connect').disabled = false;
-  byId('answer').value = '';
-  byId('status').textContent = message || (invitation ?
-    'A friend invited you to play. Join to get your reply code.' :
-    'Start a practice match or invite a friend to play online.');
+  byId('status').textContent = message || (espressoLobby.isGuest ? '' : 'Start a practice match or invite a friend to play online.');
 }
 
 function enter(message, focus = true, drill = false) {
@@ -214,7 +205,6 @@ function enter(message, focus = true, drill = false) {
   resetDrag();
   localShot = remoteShot = null;
   sentInput = undefined;
-  byId('exchange').hidden = true;
   byId('status').textContent = message;
   const opponent = peer ? opponentName : 'CPU';
   byId('p1-name').textContent = view === 0 ? 'You' : opponent;
@@ -229,17 +219,8 @@ function showSession(message) {
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
   byId('status').textContent = message;
-  byId('practice').hidden = byId('drill').hidden = byId('join').hidden = true;
+  byId('practice').hidden = byId('drill').hidden = true;
   byId('reset').hidden = false;
-}
-
-const encode = description => btoa(JSON.stringify(description)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-function decode(code, expected) {
-  const value = code.trim();
-  if (value.length > 35000 || !/^[\w-]+$/.test(value)) throw new Error('Invalid code');
-  const description = JSON.parse(atob(value.replaceAll('-', '+').replaceAll('_', '/')));
-  if (description.type !== expected || typeof description.sdp !== 'string') throw new Error('Invalid description');
-  return description;
 }
 
 async function gather(connection, description) {
@@ -259,7 +240,8 @@ async function gather(connection, description) {
       check();
     });
   }
-  return encode(connection.localDescription);
+  const { type, sdp } = connection.localDescription;
+  return { type, sdp };
 }
 
 function receive(data) {
@@ -310,18 +292,6 @@ function createPeer(index) {
   return connection;
 }
 
-function showReplyExchange(code) {
-  const isHost = code === undefined;
-  courtMode.textContent = isHost ? 'WAITING FOR REPLY CODE' : 'WAITING FOR HOST';
-  byId('replyBox').hidden = isHost;
-  byId('answerBox').hidden = !isHost;
-  if (!isHost) {
-    byId('out').value = code;
-    byId('copy').textContent = 'Copy';
-  }
-  byId('exchange').hidden = false;
-}
-
 byId('practice').onclick = () => {
   enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', true);
 };
@@ -344,47 +314,10 @@ byId('export-log').onclick = async () => {
   }
 };
 refreshLog();
-byId('join').onclick = async () => {
-  showSession('Preparing reply code…');
-  let connection;
-  try {
-    connection = createPeer(1);
-    connection.ondatachannel = event => attach(connection, event.channel);
-    await connection.setRemoteDescription(decode(invitation, 'offer'));
-    const code = await gather(connection, await connection.createAnswer());
-    if (peer !== connection) return;
-    showReplyExchange(code);
-    byId('status').textContent = 'Send this reply code to the host and keep this tab open.';
-  } catch {
-    if (peer === connection) lobby('Could not accept this invite. Ask your friend for a fresh link.');
-  }
+byId('reset').onclick = () => {
+  if (espressoLobby.isGuest) location.assign(location.pathname);
+  else start();
 };
-byId('connect').onclick = async () => {
-  const connection = peer;
-  byId('connect').disabled = true;
-  try {
-    await connection.setRemoteDescription(decode(byId('answer').value, 'answer'));
-    if (peer === connection && mode === 'connecting') {
-      courtMode.textContent = 'CONNECTING TO FRIEND';
-      byId('status').textContent = 'Connecting to your friend…';
-    }
-  } catch {
-    if (peer === connection) {
-      byId('connect').disabled = false;
-      byId('status').textContent = 'That reply code did not work. Paste the complete code from your friend.';
-    }
-  }
-};
-byId('copy').onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(byId('out').value);
-    byId('copy').textContent = 'Copied';
-  } catch {
-    byId('out').select();
-    byId('copy').textContent = 'Copy selected text';
-  }
-};
-byId('reset').onclick = () => start();
 
 function send(message) {
   if (channel?.readyState !== 'open' || channel.bufferedAmount >= 16000) return false;
@@ -481,45 +414,42 @@ const espressoLobby = setupEspresso({
   async createOffer() {
     if (peer) throw new Error('Leave the current match before inviting someone else.');
     showSession('Preparing your Espresso match…');
-    const connection = espressoPeer = createPeer(0);
+    const connection = createPeer(0);
     attach(connection, connection.createDataChannel('tennis'));
     const offer = await gather(connection, await connection.createOffer());
     if (peer !== connection) throw new Error('Match cancelled.');
-    const url = new URL(location.href);
-    url.search = '';
-    url.hash = 'invite=' + offer;
-    return { offer, url: url.href };
+    return offer;
   },
   inviteReady() {
     byId('status').textContent = '';
-    if (automaticEspresso) courtMode.textContent = 'WAITING FOR FRIEND';
-    else showReplyExchange();
+    courtMode.textContent = 'WAITING FOR FRIEND';
   },
-  async takeOffer(offer, sendAnswer) {
+  async takeOffer(offer, name, sendAnswer) {
     if (peer) throw new Error('Leave the current match before joining another.');
     showSession('Joining Espresso match…');
-    const connection = espressoPeer = createPeer(1);
+    opponentName = name;
+    const connection = createPeer(1);
     connection.ondatachannel = event => attach(connection, event.channel);
-    await connection.setRemoteDescription(decode(offer, 'offer'));
+    await connection.setRemoteDescription(offer);
     const answer = await gather(connection, await connection.createAnswer());
     if (peer !== connection) throw new Error('Match cancelled.');
     await sendAnswer(answer);
     if (peer === connection && mode === 'connecting') courtMode.textContent = 'CONNECTING TO FRIEND';
   },
-  async applyAnswer(answer, username) {
+  async applyAnswer(answer, name) {
     if (!peer || view !== 0) throw new Error('Match cancelled.');
-    if (username) opponentName = '@' + username.replace(/^@/, '');
+    opponentName = name;
     courtMode.textContent = 'CONNECTING TO FRIEND';
-    await peer.setRemoteDescription(decode(answer, 'answer'));
+    await peer.setRemoteDescription(answer);
   },
   cancelPeer() {
-    if (espressoPeer && peer === espressoPeer) lobby('Ready for a new match.');
+    if (peer) lobby('Ready for a new match.');
   }
 });
 
 function start() {
   lobby();
-  if (invitation || espressoLobby.isGuest) {
+  if (espressoLobby.isGuest) {
     if (matchMedia('(max-width: 740px), (orientation: landscape) and (max-height: 600px)').matches) {
       byId('setup').scrollIntoView({ block: 'start' });
     }
