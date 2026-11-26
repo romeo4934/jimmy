@@ -16,7 +16,7 @@ function explain(error) {
   return error?.message || 'Could not complete the Espresso invitation.';
 }
 
-export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer }) {
+export function setupEspresso({ createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer }) {
   const params = new URLSearchParams(location.search);
   const incoming = { room: params.get('room'), invite: params.get('espresso_invite') };
   const isGuest = automaticEspresso && /^[A-Za-z0-9_-]{43}$/.test(incoming.room ?? '') &&
@@ -135,8 +135,9 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
         if (current !== generation) return;
         if (open) showShareLink(delivered.link);
         hostFields.hidden = true;
-        status(open ? 'Share this link and keep this tab open. Paste your friend’s reply code when they send it.' :
-          'Espresso username invite submitted. Keep this tab open and paste your friend’s reply code when they send it.');
+        inviteReady();
+        status(open ? 'Share this link and keep this tab open. After accepting in Espresso, your friend taps Join match to get their reply code.' :
+          'Espresso username invite submitted. After accepting, your friend taps Join match to get their reply code.');
         return;
       }
       const created = await request('/rooms', 'POST', { username, open, offer });
@@ -148,6 +149,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
       active = route;
       if (open) showShareLink(created.link);
       hostFields.hidden = true;
+      inviteReady();
       status(open ? 'Share this link and keep this tab open while your friend joins.' :
         'Espresso username invite submitted. Keep this tab open while your friend accepts.');
       const deadline = Date.now() + 900000;
@@ -155,7 +157,7 @@ export function setupEspresso({ createOffer, takeOffer, applyAnswer, cancelPeer 
         const { answer } = await request(route);
         if (current !== generation) return;
         if (answer) {
-          await applyAnswer(answer);
+          await applyAnswer(answer, username);
           status('Connecting to your friend…');
           return;
         }

@@ -1,4 +1,4 @@
-import { automaticEspresso, setupEspresso } from './espresso.js?v=espresso-accept';
+import { automaticEspresso, setupEspresso } from './espresso.js?v=match-status';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { makeRenderer } from './render.js?v=lift-drive';
 
@@ -7,6 +7,8 @@ import { courtSound, playLog } from './feedback.js?v=heavy-shots';
 const byId = id => document.getElementById(id);
 const court = byId('court');
 const game = byId('game');
+const courtMode = byId('court-mode');
+const espressoPanel = byId('espresso-invite');
 const fullscreen = byId('fullscreen');
 const stick = byId('move-stick');
 const render = makeRenderer(court);
@@ -25,6 +27,7 @@ let match = newMatch();
 let view = 0;
 let peer;
 let espressoPeer;
+let opponentName = 'Friend';
 let channel;
 let remote = neutral();
 let localShot = null;
@@ -176,7 +179,8 @@ function lobby(message) {
   channel = undefined;
   previous?.close();
   mode = 'lobby';
-  byId('court-mode').textContent = 'LOBBY';
+  courtMode.textContent = 'LOBBY';
+  opponentName = 'Friend';
   view = 0;
   match = newMatch();
   keys.clear();
@@ -186,9 +190,10 @@ function lobby(message) {
   remote = neutral();
   byId('exchange').hidden = true;
   espressoLobby.reset();
+  espressoPanel.hidden = Boolean(invitation);
   byId('reset').hidden = true;
   byId('practice').hidden = byId('drill').hidden = false;
-  byId('score').hidden = false;
+  byId('score').hidden = true;
   byId('drill-progress').hidden = true;
   byId('join').hidden = !invitation;
   byId('connect').disabled = false;
@@ -211,12 +216,18 @@ function enter(message, focus = true, drill = false) {
   sentInput = undefined;
   byId('exchange').hidden = true;
   byId('status').textContent = message;
-  byId('court-mode').textContent = peer ? 'ONLINE MATCH' : 'PRACTICE';
+  const opponent = peer ? opponentName : 'CPU';
+  byId('p1-name').textContent = view === 0 ? 'You' : opponent;
+  byId('p2-name').textContent = view === 1 ? 'You' : opponent;
+  courtMode.textContent = peer ? 'ONLINE · VS ' + opponent : 'PRACTICE · VS CPU';
   if (focus) court.focus({ preventScroll: true });
 }
 
 function showSession(message) {
-  byId('court-mode').textContent = 'ONLINE LOBBY';
+  match = newMatch();
+  courtMode.textContent = 'PREPARING MATCH';
+  byId('score').hidden = true;
+  byId('drill-progress').hidden = true;
   byId('status').textContent = message;
   byId('practice').hidden = byId('drill').hidden = byId('join').hidden = true;
   byId('reset').hidden = false;
@@ -276,7 +287,8 @@ function attach(connection, dataChannel) {
   channel = dataChannel;
   dataChannel.onopen = () => {
     if (peer !== connection) return;
-    enter('Online match · You are Player ' + (view + 1) + '.');
+    espressoPanel.hidden = true;
+    enter('Online match · You vs ' + opponentName + '.');
     game.scrollIntoView({ block: 'start' });
   };
   dataChannel.onmessage = event => { if (peer === connection) receive(event.data); };
@@ -300,6 +312,7 @@ function createPeer(index) {
 
 function showReplyExchange(code) {
   const isHost = code === undefined;
+  courtMode.textContent = isHost ? 'WAITING FOR REPLY CODE' : 'WAITING FOR HOST';
   byId('replyBox').hidden = isHost;
   byId('answerBox').hidden = !isHost;
   if (!isHost) {
@@ -351,7 +364,10 @@ byId('connect').onclick = async () => {
   byId('connect').disabled = true;
   try {
     await connection.setRemoteDescription(decode(byId('answer').value, 'answer'));
-    if (peer === connection && mode === 'connecting') byId('status').textContent = 'Connecting to your friend…';
+    if (peer === connection && mode === 'connecting') {
+      courtMode.textContent = 'CONNECTING TO FRIEND';
+      byId('status').textContent = 'Connecting to your friend…';
+    }
   } catch {
     if (peer === connection) {
       byId('connect').disabled = false;
@@ -472,11 +488,12 @@ const espressoLobby = setupEspresso({
     const url = new URL(location.href);
     url.search = '';
     url.hash = 'invite=' + offer;
-    if (!automaticEspresso) {
-      byId('status').textContent = '';
-      showReplyExchange();
-    }
     return { offer, url: url.href };
+  },
+  inviteReady() {
+    byId('status').textContent = '';
+    if (automaticEspresso) courtMode.textContent = 'WAITING FOR FRIEND';
+    else showReplyExchange();
   },
   async takeOffer(offer, sendAnswer) {
     if (peer) throw new Error('Leave the current match before joining another.');
@@ -487,17 +504,18 @@ const espressoLobby = setupEspresso({
     const answer = await gather(connection, await connection.createAnswer());
     if (peer !== connection) throw new Error('Match cancelled.');
     await sendAnswer(answer);
+    if (peer === connection && mode === 'connecting') courtMode.textContent = 'CONNECTING TO FRIEND';
   },
-  async applyAnswer(answer) {
+  async applyAnswer(answer, username) {
     if (!peer || view !== 0) throw new Error('Match cancelled.');
+    if (username) opponentName = '@' + username.replace(/^@/, '');
+    courtMode.textContent = 'CONNECTING TO FRIEND';
     await peer.setRemoteDescription(decode(answer, 'answer'));
   },
   cancelPeer() {
     if (espressoPeer && peer === espressoPeer) lobby('Ready for a new match.');
   }
 });
-
-byId('espresso-invite').hidden = Boolean(invitation);
 
 function start() {
   lobby();

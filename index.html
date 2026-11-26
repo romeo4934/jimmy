@@ -5,17 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A retro, two-player browser tennis game.">
 <title>Baseline Club</title>
-<link rel="stylesheet" href="./style.css?v=espresso-delivery">
+<link rel="stylesheet" href="./style.css?v=match-status">
 </head>
 <body>
 <main>
 <header><div class="brand"><span aria-hidden="true">◉</span> BASELINE CLUB</div><div class="edition">ONLINE TENNIS</div></header>
-<section class="title"><p>THE HARDCOURT SERIES</p><h1>Baseline<span> Club.</span></h1></section>
 <div class="layout">
 <section id="game" class="game" aria-label="Tennis match">
-<div id="score" class="score"><div><i></i><span class="score-name">PLAYER 1</span><strong id="p1">0</strong></div><span id="games">GAMES 0–0</span><div><i></i><span class="score-name">PLAYER 2</span><strong id="p2">0</strong></div></div>
+<div id="score" class="score"><div><i></i><span id="p1-name" class="score-name">You</span><strong id="p1">0</strong></div><span id="games">GAMES 0–0</span><div><i></i><span id="p2-name" class="score-name">CPU</span><strong id="p2">0</strong></div></div>
 <div id="drill-progress" class="score drill-progress" role="status" hidden></div>
-<div class="court-toolbar"><span id="court-mode">PRACTICE</span><label class="power" for="power-meter">POWER <meter id="power-meter" min="0" max="100" value="0"></meter></label><div class="court-actions"><button id="match-setup" type="button" aria-label="Match setup">Setup</button><button id="fullscreen" type="button" aria-pressed="false">Fullscreen</button></div></div>
+<div class="court-toolbar"><span id="court-mode">PRACTICE · VS CPU</span><label class="power" for="power-meter">POWER <meter id="power-meter" min="0" max="100" value="0"></meter></label><div class="court-actions"><button id="match-setup" type="button" aria-label="Match setup">Setup</button><button id="fullscreen" type="button" aria-pressed="false">Fullscreen</button></div></div>
 <canvas id="court" tabindex="0" width="800" height="540" aria-label="Tennis court"></canvas>
 <div class="legend"><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>WASD</kbd> Move</span><span><kbd>Z</kbd> Hold for drive</span><span><kbd>X</kbd> Hold for lob</span></div>
 <div class="touch" aria-label="On-screen controls">
@@ -80,6 +79,6 @@
 </div>
 </main>
 <script defer src="https://connect.espressocash.com/sdk.js?v=invite-tickets"></script>
-<script type="module" src="./app.js?v=espresso-accept"></script>
+<script type="module" src="./app.js?v=match-status"></script>
 </body>
 </html>
