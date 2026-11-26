@@ -1,6 +1,6 @@
 import { setupEspresso } from './espresso.js?v=roster';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
-import { drawPlayerPreview, makeRenderer } from './render.js?v=roster';
+import { drawPlayerPreview, makeRenderer } from './render.js?v=oval-rackets';
 import { roster, setupStore } from './store.js?v=roster';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
@@ -10,6 +10,8 @@ const court = byId('court');
 const game = byId('game');
 const courtMode = byId('court-mode');
 const espressoPanel = byId('espresso-invite');
+const practiceOptions = byId('practice-options');
+const practiceButton = byId('practice');
 const fullscreen = byId('fullscreen');
 const stick = byId('move-stick');
 const render = makeRenderer(court);
@@ -200,7 +202,9 @@ function lobby(message) {
   espressoPanel.hidden = false;
   byId('open-store').hidden = false;
   byId('reset').hidden = !espressoLobby.isInvitePage;
-  byId('practice').hidden = byId('drill').hidden = false;
+  practiceOptions.hidden = false;
+  practiceOptions.open = false;
+  practiceButton.textContent = 'Play vs CPU';
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
   byId('status').textContent = message || (espressoLobby.isInvitePage ? '' : 'Start a practice match or invite a friend to play online.');
@@ -218,6 +222,7 @@ function enter(message, focus = true, drill = false) {
   localShot = remoteShot = null;
   sentInput = undefined;
   byId('status').textContent = message;
+  practiceButton.textContent = !peer && !drill ? 'Restart practice' : 'Play vs CPU';
   const opponent = peer ? opponentName : 'CPU';
   byId('p1-name').textContent = view === 0 ? 'You' : opponent;
   byId('p2-name').textContent = view === 1 ? 'You' : opponent;
@@ -233,7 +238,7 @@ function showSession(message) {
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
   byId('status').textContent = message;
-  byId('practice').hidden = byId('drill').hidden = true;
+  practiceOptions.hidden = true;
   byId('reset').hidden = false;
 }
 
@@ -331,10 +336,13 @@ function createPeer(index) {
   return connection;
 }
 
-byId('practice').onclick = () => {
-  enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', true);
+practiceButton.onclick = () => {
+  practiceOptions.open = false;
+  enter('');
+  game.scrollIntoView({ block: 'start' });
 };
 byId('drill').onclick = () => {
+  practiceOptions.open = false;
   if (byId('sound-enabled').checked) audio.unlock();
   enter('Return drill · Read the bounce marker, hold Drive, then release near contact.', true, true);
   game.scrollIntoView({ block: 'start' });
@@ -500,7 +508,7 @@ function start() {
     }
     return;
   }
-  enter('Practice · Use the left stick to move. Hold Drive to charge. Release to swing and move again.', false);
+  enter('', false);
 }
 start();
 if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();

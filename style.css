@@ -99,3 +99,8 @@ canvas{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-use
 .store-roster p{margin:2px 0 7px}
 .store-roster button{margin:0;padding:6px 4px}
 @media (min-width:570px){.store-roster{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+#status:empty{display:none}
+.practice-options{margin-top:6px}
+.practice-options summary{cursor:pointer;font-size:.88rem;font-weight:750}
+.practice-options button:first-of-type{margin-top:8px}

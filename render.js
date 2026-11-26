@@ -63,13 +63,23 @@ function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
   ctx.stroke();
   ctx.translate(racketX, racketY);
   ctx.rotate(.43);
-  rect(ink, -2, 3, 4, 9);
-  rect(trim, -6, -8, 12, 14);
-  rect('#304d51', -4, -6, 8, 10);
-  rect('#e5e7cd', -3, -5, 1, 8);
-  rect('#e5e7cd', 1, -5, 1, 8);
-  rect('#e5e7cd', -3, -3, 6, 1);
-  rect('#e5e7cd', -3, 0, 6, 1);
+  rect(ink, -2, 4, 4, 9);
+  rect('#b4916f', -1, 8, 2, 4);
+  ctx.beginPath();
+  ctx.ellipse(0, -2, 5.8, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#304d51';
+  ctx.fill();
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+  ctx.strokeStyle = trim;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.clip();
+  for (const x of [-2.5, 0, 2.5]) rect('#e5e7cd', x - .3, -9, .6, 14);
+  for (const y of [-6, -3, 0, 3]) rect('#e5e7cd', -5, y - .3, 10, .6);
+  ctx.restore();
   ctx.restore();
 }
 
