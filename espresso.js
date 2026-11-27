@@ -45,21 +45,17 @@ async function roomPlayer(room, sender, selected, fallback = 'Friend') {
   const player = players.find(entry => entry.euid === sender);
   const name = typeof player?.name === 'string' && player.name.trim() ? player.name.trim().slice(0, 64) : fallback;
   const items = Array.isArray(player?.items) ? player.items : [];
-  return { name, appearance: allowedPlayer(selected, items, roster[1]) };
+  return { name, euid: player?.euid, appearance: allowedPlayer(selected, items, roster[1]) };
 }
 
 export function setupEspresso({ record, onConnection, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer, selectedPlayer }) {
   const params = new URLSearchParams(location.search);
   const incoming = params.get('espresso_invite');
   const legacyInvite = new URLSearchParams(location.hash.slice(1)).has('invite') || Boolean(incoming && params.has('room'));
-  const isInvitePage = legacyInvite || incoming !== null;
-  const box = byId('espresso-invite');
+  let isInvitePage = legacyInvite || incoming !== null;
   const connectButton = byId('espresso-connect');
-  const account = byId('espresso-account');
   const send = byId('espresso-send');
   const hostFields = byId('espresso-host-fields');
-  const delivery = byId('espresso-delivery');
-  const recipient = byId('espresso-recipient');
   const usernameField = byId('espresso-to');
   const share = byId('espresso-share');
   const shareUrl = byId('espresso-share-url');
@@ -88,7 +84,6 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
     needsConnection = !connection;
     connectButton.hidden = isInvitePage || Boolean(connection);
     if (isInvitePage) join.textContent = connection ? 'Retry joining' : 'Connect and join';
-    account.hidden = !connection;
     onConnection(sdk, connection, refresh);
   }
   async function refreshConnection() {
@@ -130,11 +125,8 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
     share.hidden = false;
   }
   function updateInviteControls(busy) {
-    const byUsername = delivery.value === 'username';
-    recipient.hidden = !byUsername;
-    usernameField.disabled = busy || !byUsername;
-    delivery.disabled = send.disabled = join.disabled = busy;
-    send.textContent = byUsername ? 'Send Espresso invite' : 'Create invite link';
+    usernameField.disabled = send.disabled = join.disabled = busy;
+    send.textContent = usernameField.value.trim() ? 'Send invite' : 'Create invite link';
   }
   function closeRoom() {
     clearTimeout(roomTimer);
@@ -150,7 +142,7 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
     hostFields.hidden = isInvitePage;
     join.hidden = !isInvitePage || legacyInvite;
     updateInviteControls(false);
-    status(legacyInvite ? 'This invite was created before Espresso Rooms. Ask your friend for a new invite.' : '');
+    status(isInvitePage && legacyInvite ? 'This invite was created before Espresso Rooms. Ask your friend for a new invite.' : '');
   }
   function failMatch(error) {
     record('Match setup failed.', error);
@@ -246,9 +238,9 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
   }
 
   async function invite() {
-    const open = delivery.value !== 'username';
-    const username = open ? '' : usernameField.value.trim();
-    if (!open && (!username || /[\s,]/.test(username))) {
+    const username = usernameField.value.trim();
+    const open = !username;
+    if (username === '@' || /[\s,]/.test(username)) {
       status('Enter one Espresso Cash @username.');
       return;
     }
@@ -282,7 +274,7 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
     }
   }
 
-  delivery.onchange = () => {
+  usernameField.oninput = () => {
     updateInviteControls(false);
     status('');
   };
@@ -345,11 +337,19 @@ export function setupEspresso({ record, onConnection, createOffer, inviteReady, 
     }
     finally { connectButton.disabled = false; }
   };
-  box.hidden = false;
   hostFields.hidden = isInvitePage;
   if (!isInvitePage || legacyInvite) void refreshConnection();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && window.EspressoConnect) void refreshConnection();
   });
-  return { isInvitePage, joinAccepted: () => joinMatch(false), matchStarted: closeRoom, reset, client, signIn };
+  return {
+    get isInvitePage() { return isInvitePage; },
+    leaveInvite() {
+      if (!isInvitePage) return;
+      isInvitePage = false;
+      history.replaceState(null, '', location.pathname);
+      void refreshConnection();
+    },
+    joinAccepted: () => joinMatch(false), matchStarted: closeRoom, reset, client, signIn
+  };
 }

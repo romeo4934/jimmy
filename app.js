@@ -1,9 +1,9 @@
-import { setupEspresso } from './espresso.js?v=saved-settings';
-import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=game-logs';
-import { drawPlayerPreview, makeRenderer } from './render.js?v=bigger-court';
-import { roster, setupStore } from './store.js?v=saved-settings';
+import { setupEspresso } from './espresso.js?v=arcade';
+import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=power-drive';
+import { drawPlayerPreview, makeRenderer } from './render.js?v=arcade';
+import { roster, setupStore } from './store.js?v=arcade';
 import { setupPreferences } from './preferences.js?v=saves';
-import { gameLogs, pointMetrics } from './game-logs.js?v=2';
+import { gameLogs, pointMetrics } from './game-logs.js?v=arcade';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -11,10 +11,15 @@ const byId = id => document.getElementById(id);
 const court = byId('court');
 const game = byId('game');
 const courtMode = byId('court-mode');
-const espressoPanel = byId('espresso-invite');
-const practiceOptions = byId('practice-options');
+const inviteDialog = byId('invite-dialog');
+const menuDialog = byId('menu-dialog');
+const storeDialog = byId('store');
+const resultsDialog = byId('match-results');
+const inviteButton = byId('open-invite');
 const practiceButton = byId('practice');
 const fullscreen = byId('fullscreen');
+const tipButton = byId('send-tip');
+const tipAmount = '0.10';
 const stick = byId('move-stick');
 const render = makeRenderer(court);
 const audio = courtSound();
@@ -41,6 +46,7 @@ let view = 0;
 let peer;
 let peerTimer;
 let opponentName = 'Friend';
+let opponentId;
 let ownPlayer = roster[0];
 let opponentPlayer = roster[1];
 let channel;
@@ -55,6 +61,8 @@ let nextFrame = 0;
 let inputMethod = 'unknown';
 let measuredMatch;
 let matchNumber = 0;
+let result;
+let sendingTip;
 const sharedLog = gameLogs(() => finishMeasuredMatch('closed'));
 const playLocked = () => sharedLog.required && !sharedLog.enabled;
 const shareGameplay = byId('share-gameplay');
@@ -65,6 +73,10 @@ shareGameplay.addEventListener('change', () => {
   sharedLog.setEnabled(shareGameplay.checked);
   if (sharedLog.enabled) return;
   measuredMatch = undefined;
+  for (const dialog of game.querySelectorAll('dialog[open]')) dialog.close();
+  if (document.fullscreenElement === game) void document.exitFullscreen().catch(() => {});
+  game.classList.remove('expanded');
+  updateFullscreen();
   lobby();
   showEntry();
   window.scrollTo(0, 0);
@@ -113,8 +125,8 @@ function press(key) {
 window.addEventListener('keydown', event => {
   const key = movementKeys[event.code] || event.code;
   if (event.altKey || event.ctrlKey || event.metaKey ||
-    event.target.closest?.('input, textarea, [contenteditable]') ||
-    !bindings.has(key) || mode !== 'playing') return;
+    event.target.closest?.('dialog, input, textarea, [contenteditable]') ||
+    !bindings.has(key) || mode !== 'playing' || result) return;
   event.preventDefault();
   useControls('keyboard');
   press(key);
@@ -130,6 +142,7 @@ function updateFullscreen() {
   fullscreen.setAttribute('aria-pressed', String(expanded));
 }
 fullscreen.onclick = async () => {
+  menuDialog.close();
   if (document.fullscreenElement === game) await document.exitFullscreen();
   else if (game.classList.contains('expanded')) game.classList.remove('expanded');
   else {
@@ -140,16 +153,8 @@ fullscreen.onclick = async () => {
   court.focus({ preventScroll: true });
 };
 document.addEventListener('fullscreenchange', updateFullscreen);
-byId('match-setup').onclick = () => {
-  byId('setup').scrollIntoView({ block: 'start' });
-  byId('back-to-court').focus({ preventScroll: true });
-};
-byId('back-to-court').onclick = () => {
-  game.scrollIntoView({ block: 'start' });
-  court.focus({ preventScroll: true });
-};
 window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && game.classList.contains('expanded')) {
+  if (event.key === 'Escape' && !event.target.closest?.('dialog') && game.classList.contains('expanded')) {
     game.classList.remove('expanded');
     updateFullscreen();
   }
@@ -168,8 +173,28 @@ function resetDrag() {
   paintStick(0,0);
 }
 
+function clearControls() {
+  keys.clear();
+  localShot = null;
+  resetDrag();
+}
+
+function openPanel(dialog) {
+  if (dialog.open) return;
+  clearControls();
+  for (const other of game.querySelectorAll('dialog[open]')) other.close();
+  dialog.showModal();
+}
+
+byId('open-menu').onclick = () => openPanel(menuDialog);
+inviteButton.onclick = () => {
+  if (result?.online && mode === 'playing') espressoLobby.reset();
+  openPanel(inviteDialog);
+};
+byId('view-results').onclick = () => openPanel(resultsDialog);
+
 stick.addEventListener('pointerdown', event => {
-  if (mode !== 'playing' || drag || event.button !== 0) return;
+  if (mode !== 'playing' || result || drag || event.button !== 0) return;
   event.preventDefault();
   useControls(event.pointerType === 'touch' ? 'touch' : 'pointer');
   stick.setPointerCapture(event.pointerId);
@@ -221,10 +246,10 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     if (event.pointerId === drag?.id) resetDrag();
   });
 }
-window.addEventListener('blur', () => { keys.clear(); localShot = null; resetDrag(); });
+window.addEventListener('blur', clearControls);
 document.querySelectorAll('[data-key]').forEach(button => {
   button.addEventListener('pointerdown', event => {
-    if (mode !== 'playing') return;
+    if (mode !== 'playing' || result) return;
     event.preventDefault();
     useControls(event.pointerType === 'touch' ? 'touch' : 'pointer');
     button.setPointerCapture(event.pointerId);
@@ -243,51 +268,58 @@ function closePeer() {
   previous?.close();
 }
 
+function clearResult() {
+  result = undefined;
+  resultsDialog.close();
+  byId('view-results').hidden = true;
+}
+
 function lobby(message, endReason = 'lobby') {
   finishMeasuredMatch(endReason);
   closePeer();
+  clearResult();
+  clearControls();
   mode = 'lobby';
-  courtMode.textContent = 'LOBBY';
+  game.classList.remove('in-match');
+  courtMode.textContent = 'Ready';
   opponentName = 'Friend';
+  opponentId = undefined;
   opponentPlayer = roster[1];
   view = 0;
   match = newMatch();
-  keys.clear();
-  resetDrag();
-  localShot = remoteShot = null;
+  remoteShot = null;
   sentInput = undefined;
   remote = neutral();
   espressoLobby.reset();
-  espressoPanel.hidden = false;
-  byId('open-store').hidden = false;
+  inviteButton.hidden = false;
   byId('reset').hidden = !espressoLobby.isInvitePage;
-  practiceOptions.hidden = false;
-  practiceOptions.open = false;
   practiceButton.textContent = 'Play vs CPU';
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
-  byId('status').textContent = message || (espressoLobby.isInvitePage ? '' : 'Start a practice match or invite a friend to play online.');
+  byId('status').textContent = message || '';
 }
 
 function enter(message, focus = true, drill = false) {
   if (playLocked()) return;
   finishMeasuredMatch('restarted');
+  clearResult();
+  clearControls();
   mode = 'playing';
+  game.classList.add('in-match');
   match = newMatch(drill);
   seenEvent = lateralCorrections = 0;
   byId('score').hidden = drill;
   byId('drill-progress').hidden = !drill;
   tick = 0;
-  keys.clear();
-  resetDrag();
-  localShot = remoteShot = null;
+  remoteShot = null;
   sentInput = undefined;
   byId('status').textContent = message;
-  practiceButton.textContent = !peer && !drill ? 'Restart practice' : 'Play vs CPU';
+  inviteButton.hidden = Boolean(peer);
+  practiceButton.textContent = !peer && !drill ? 'Restart vs CPU' : 'Play vs CPU';
   const opponent = peer ? opponentName : 'CPU';
   byId('p1-name').textContent = view === 0 ? 'You' : opponent;
   byId('p2-name').textContent = view === 1 ? 'You' : opponent;
-  courtMode.textContent = peer ? 'ONLINE · VS ' + opponent : 'PRACTICE · VS CPU';
+  courtMode.textContent = drill ? 'Return drill' : peer ? 'Online · vs ' + opponent : 'VS CPU';
   if (focus) {
     startMeasuredMatch();
     court.focus({ preventScroll: true });
@@ -296,16 +328,76 @@ function enter(message, focus = true, drill = false) {
 
 function showSession(message) {
   finishMeasuredMatch('switched_to_online');
+  if (result) closePeer();
+  clearResult();
+  clearControls();
   mode = 'lobby';
-  byId('open-store').hidden = true;
+  game.classList.remove('in-match');
   match = newMatch();
-  courtMode.textContent = 'PREPARING MATCH';
+  courtMode.textContent = 'Connecting…';
   byId('score').hidden = true;
   byId('drill-progress').hidden = true;
   byId('status').textContent = message;
-  practiceOptions.hidden = true;
   byId('reset').hidden = false;
 }
+
+function updateTip() {
+  byId('match-tip').hidden = !result?.opponentId;
+  tipButton.disabled = Boolean(sendingTip || result?.tipLocked);
+  tipButton.textContent = `Tip ${tipAmount} USDC to ${result?.opponent || 'friend'}`;
+  byId('tip-status').textContent = result?.tipStatus || '';
+}
+
+function showResult(entry) {
+  const drill = entry.type === 'drill';
+  if (result || (drill ? entry.drillComplete !== true : ![0, 1].includes(match.winner))) return;
+  const opponent = peer ? opponentName : 'CPU';
+  result = { drill, online: Boolean(peer), opponent, opponentId: peer ? opponentId : undefined };
+  clearControls();
+  game.classList.remove('in-match');
+  byId('status').textContent = '';
+  byId('results-title').textContent = drill ? 'Drill complete' : match.winner === view ? 'You win!' : `${opponent} wins`;
+  byId('final-score').textContent = drill ? `${match.drill.hits} / ${entry.attempt} returns` :
+    `You ${match.games[view]}–${match.games[1 - view]} ${opponent}`;
+  byId('results-next').textContent = drill ? 'Try again' : result.online ? 'Back to court' : 'Play again';
+  byId('view-results').hidden = false;
+  inviteButton.hidden = result.online && espressoLobby.isInvitePage;
+  updateTip();
+  if (!game.querySelector('dialog[open]')) openPanel(resultsDialog);
+}
+
+tipButton.onclick = async () => {
+  const matchResult = result;
+  const player = matchResult?.opponentId;
+  if (!player || sendingTip || matchResult.tipLocked) return;
+  sendingTip = matchResult;
+  matchResult.tipStatus = 'Approve the tip in Espresso Cash.';
+  updateTip();
+  try {
+    const receipt = await espressoLobby.client().charge(tipAmount, {
+      to: { player },
+      // Keep the recipient explicit even if a browser cached an older SDK.
+      recipient: `player:${player}`,
+      note: 'Good match!',
+      session: false
+    });
+    if (receipt?.approved !== true) throw new Error('Tip outcome unknown');
+    matchResult.tipLocked = true;
+    matchResult.tipStatus = 'Tip sent!';
+  } catch (error) {
+    matchResult.tipLocked = error?.code !== 'declined' && error?.code !== 'not_connected';
+    matchResult.tipStatus = {
+      declined: 'The tip was declined or expired.',
+      not_connected: 'Reconnect to Espresso Cash to send a tip.',
+      not_a_player: 'This match is no longer eligible for a tip.',
+      self_payment: 'You can only tip the other player.',
+      too_many_tips: 'You’ve reached Espresso’s daily tip limit.'
+    }[error?.code] || 'Espresso hasn’t confirmed the tip. Check the app for its status.';
+  } finally {
+    sendingTip = undefined;
+    updateTip();
+  }
+};
 
 async function gather(connection, description) {
   await connection.setLocalDescription(description);
@@ -359,14 +451,14 @@ function attach(connection, dataChannel) {
     clearTimeout(peerTimer);
     recordConnection('WebRTC data channel opened. Match started.');
     espressoLobby.matchStarted();
-    espressoPanel.hidden = true;
-    enter('Online match · You vs ' + opponentName + '.');
-    game.scrollIntoView({ block: 'start' });
+    inviteDialog.close();
+    enter('');
   };
   dataChannel.onmessage = event => { if (peer === connection) receive(event.data); };
   dataChannel.onclose = () => {
     if (peer !== connection) return;
     recordConnection('WebRTC data channel closed.');
+    if (result?.online) { closePeer(); return; }
     lobby('The other player disconnected. Start a new match to reconnect.', 'disconnected');
   };
 }
@@ -395,23 +487,25 @@ function createPeer(index) {
     if (peer !== connection) return;
     recordConnection(`WebRTC: ${connection.connectionState}.`);
     if (connection.connectionState === 'failed') {
+      if (result?.online) { closePeer(); return; }
       lobby(directConnectionFailed, 'disconnected');
     }
   };
   return connection;
 }
 
-practiceButton.onclick = () => {
-  practiceOptions.open = false;
-  enter('');
-  game.scrollIntoView({ block: 'start' });
-};
-byId('drill').onclick = () => {
-  practiceOptions.open = false;
-  if (soundEnabled.checked) audio.unlock();
-  enter('Return drill · Read the bounce marker, hold Drive, then release near contact.', true, true);
-  game.scrollIntoView({ block: 'start' });
-};
+function playPractice(drill = false) {
+  menuDialog.close();
+  inviteDialog.close();
+  espressoLobby.leaveInvite();
+  lobby('', 'restarted');
+  if (drill && soundEnabled.checked) audio.unlock();
+  enter(drill ? 'Read the bounce, hold Drive, then release near contact.' : '', true, drill);
+}
+
+practiceButton.onclick = () => playPractice();
+byId('drill').onclick = () => playPractice(true);
+byId('results-next').onclick = () => playPractice(result?.drill === true);
 byId('export-log').onclick = async () => {
   const report = log.report();
   try {
@@ -426,10 +520,7 @@ byId('export-log').onclick = async () => {
   }
 };
 refreshLog();
-byId('reset').onclick = () => {
-  if (espressoLobby.isInvitePage) location.assign(location.pathname);
-  else start();
-};
+byId('reset').onclick = () => playPractice();
 
 function send(message) {
   if (channel?.readyState !== 'open' || channel.bufferedAmount >= 16000) return false;
@@ -494,6 +585,7 @@ function consumeEvent() {
       'Log available in this tab only. Copy it before closing.';
   }
   lateralCorrections = 0;
+  showResult(entry);
 }
 
 function simulate() {
@@ -508,9 +600,10 @@ function simulate() {
     const opponent = peer ? { ...remote, shot: remoteShot } :
       match.drill ? neutral() : { ...cpuInput(match), cpu: true };
     remoteShot = null;
+    const inProgress = match.winner === null;
     step(match, [input, opponent]);
+    if (peer && (tick % 2 === 0 || (inProgress && match.winner !== null))) send({ match });
     consumeEvent();
-    if (peer && tick % 2 === 0) send({ match });
   }
 }
 
@@ -520,11 +613,13 @@ function pointLabel(points, against) {
 }
 function frame(now) {
   if (!nextFrame || now - nextFrame > 100) nextFrame = now;
+  const playing = mode === 'playing';
+  const paused = !peer && (result || menuDialog.open || inviteDialog.open || storeDialog.open);
   while (nextFrame <= now) {
-    if (mode === 'playing') simulate();
+    if (playing && !paused) simulate();
     nextFrame += 1000 / 60;
   }
-  const active = mode === 'playing';
+  const active = playing && !result;
   const p = match.players[view];
   const serving = match.server === view && (match.toss || p.swing && match.lastShots?.[view]?.serve);
   const maxPower = serving ? 1 : maxRallyPower;
@@ -548,8 +643,7 @@ const espressoLobby = setupEspresso({
   },
   selectedPlayer: () => ownPlayer.id,
   async createOffer() {
-    showSession('Your friend joined. Connecting…');
-    courtMode.textContent = 'FRIEND JOINED';
+    showSession('Your friend joined.');
     const connection = createPeer(0);
     attach(connection, connection.createDataChannel('tennis'));
     const offer = await gather(connection, await connection.createOffer());
@@ -558,11 +652,12 @@ const espressoLobby = setupEspresso({
   },
   inviteReady() {
     showSession('');
-    courtMode.textContent = 'WAITING FOR FRIEND';
+    courtMode.textContent = 'Waiting for friend';
   },
   async takeOffer(offer, opponent, sendAnswer) {
-    showSession('Joining Espresso match…');
+    showSession('');
     opponentName = opponent.name;
+    opponentId = opponent.euid;
     opponentPlayer = opponent.appearance;
     const connection = createPeer(1);
     connection.ondatachannel = event => attach(connection, event.channel);
@@ -570,37 +665,29 @@ const espressoLobby = setupEspresso({
     const answer = await gather(connection, await connection.createAnswer());
     if (peer !== connection) throw new Error('Match cancelled.');
     await sendAnswer(answer);
-    if (peer === connection && mode === 'connecting') courtMode.textContent = 'CONNECTING TO FRIEND';
     waitForPeer(connection);
   },
   async applyAnswer(answer, opponent) {
     const connection = peer;
     if (!connection || view !== 0) throw new Error('Match cancelled.');
     opponentName = opponent.name;
+    opponentId = opponent.euid;
     opponentPlayer = opponent.appearance;
-    courtMode.textContent = 'CONNECTING TO FRIEND';
     await connection.setRemoteDescription(answer);
     waitForPeer(connection);
   },
   cancelPeer() {
-    if (peer || byId('open-store').hidden) lobby('Ready for a new match.');
+    if (!result && (peer || mode !== 'playing')) lobby();
   }
 });
 
-function start() {
-  lobby();
-  if (espressoLobby.isInvitePage) {
-    if (matchMedia('(max-width: 740px), (orientation: landscape) and (max-height: 600px)').matches) {
-      byId('setup').scrollIntoView({ block: 'start' });
-    }
-    return;
-  }
-  enter('', false);
-}
 function openGame() {
   delete document.documentElement.dataset.playLocked;
-  start();
-  if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();
+  lobby();
+  if (espressoLobby.isInvitePage) {
+    openPanel(inviteDialog);
+    void espressoLobby.joinAccepted();
+  } else enter('', false);
 }
 
 entryPlay.onclick = () => {
@@ -620,6 +707,7 @@ setupStore({
   client: espressoLobby.client,
   signIn: espressoLobby.signIn,
   preferences,
+  openPanel,
   drawPreview: drawPlayerPreview,
   setPlayer(player) { ownPlayer = player; }
 });

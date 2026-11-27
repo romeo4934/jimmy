@@ -11,7 +11,7 @@ export function allowedPlayer(id, items = [], fallback = roster[0]) {
   return player && (!player.paid || items.includes(id)) ? player : fallback;
 }
 
-export function setupStore({ client, signIn, preferences, drawPreview, setPlayer }) {
+export function setupStore({ client, signIn, preferences, openPanel, drawPreview, setPlayer }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('store');
   const connect = byId('store-connect');
@@ -90,6 +90,7 @@ export function setupStore({ client, signIn, preferences, drawPreview, setPlayer
     if (!player.paid || owned.includes(player.id)) {
       preferences.set('player', player.id);
       status.textContent = '';
+      dialog.close();
       return;
     }
     if (!connected) {
@@ -142,7 +143,7 @@ export function setupStore({ client, signIn, preferences, drawPreview, setPlayer
   }
 
   byId('open-store').onclick = () => {
-    dialog.showModal();
+    openPanel(dialog);
     void refresh();
   };
   connect.onclick = () => refresh(true);

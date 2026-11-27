@@ -28,7 +28,7 @@ export function gameLogs(onPageEnd) {
       record('session_start');
       timer = setInterval(flush, 10_000);
     }
-    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-27', ...data } });
+    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-27-arcade', ...data } });
     if (session.queue.length > 250) session.queue.shift();
   }
 
@@ -87,7 +87,7 @@ export function pointMetrics(entry, shot, miss, corrections) {
     lateralCorrections: corrections,
     shot: shot?.shot === 'drive' || shot?.shot === 'lob' ? {
       type: shot.shot, serve: shot.serve === true, stroke: stroke(shot.stroke),
-      ...numberFields(shot, ['power', 'aim', 'spin', 'lift', 'offset', 'landingX', 'incomingSpeed', 'returnSpeed', 'releaseLeadFrames'])
+      ...numberFields(shot, ['power', 'aim', 'spin', 'lift', 'offset', 'landingX', 'incomingSpeed', 'returnSpeed', 'releaseLeadFrames', 'paceBoost'])
     } : null,
     miss: miss ? { stroke: stroke(miss.stroke), needed: stroke(miss.needed), early: miss.reason === 'early',
       ...numberFields(miss, ['releaseLeadFrames']) } : null

@@ -19,13 +19,13 @@
     if (!accepted) document.documentElement.dataset.playLocked = '';
   }
 </script>
-<link rel="stylesheet" href="./style.css?v=bigger-court">
+<link rel="stylesheet" href="./style.css?v=arcade">
 </head>
 <body>
 <section id="play-entry" class="play-entry" aria-labelledby="entry-title">
 <div class="entry-content">
 <h1 id="entry-title">Baseline<br>Club<span aria-hidden="true">.</span></h1>
-<p id="entry-sharing">By choosing Accept &amp; play, you agree to share shot timing, rally lengths, and match results with Espresso using a random browser ID. You can turn off sharing in Setup.</p>
+<p id="entry-sharing">By choosing Accept &amp; play, you agree to share shot timing, rally lengths, and match results with Espresso using a random browser ID. You can turn off sharing in the menu.</p>
 <button id="entry-play" type="button" aria-describedby="entry-sharing" disabled>Accept &amp; play <span aria-hidden="true">→</span></button>
 </div>
 <div class="entry-art">
@@ -33,14 +33,21 @@
 </div>
 </section>
 <main id="play-app">
-<header><div class="brand"><span aria-hidden="true">◉</span> BASELINE CLUB</div><div class="edition">ONLINE TENNIS</div></header>
-<div class="layout">
 <section id="game" class="game" aria-label="Tennis match">
+<canvas id="court" tabindex="0" width="800" height="540" aria-label="Tennis court"></canvas>
+<div class="court-toolbar">
+  <span id="court-mode">VS CPU</span>
+  <nav class="court-actions" aria-label="Game actions">
+    <button id="view-results" type="button" hidden>Results</button>
+    <button id="open-invite" type="button">Invite friend</button>
+    <button id="open-store" type="button">Players</button>
+    <button id="open-menu" type="button">Menu</button>
+  </nav>
+</div>
 <div id="score" class="score"><div><i></i><span id="p1-name" class="score-name">You</span><strong id="p1">0</strong></div><span id="games">GAMES 0–0</span><div><i></i><span id="p2-name" class="score-name">CPU</span><strong id="p2">0</strong></div></div>
 <div id="drill-progress" class="score drill-progress" role="status" hidden></div>
-<div class="court-toolbar"><span id="court-mode">PRACTICE · VS CPU</span><label class="power" for="power-meter">POWER <meter id="power-meter" min="0" max="100" value="0"></meter></label><div class="court-actions"><button id="match-setup" type="button" aria-label="Match setup">Setup</button><button id="fullscreen" type="button" aria-pressed="false">Fullscreen</button></div></div>
-<canvas id="court" tabindex="0" width="800" height="540" aria-label="Tennis court"></canvas>
-<div class="legend"><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>WASD</kbd> Move</span><span><kbd>Z</kbd> Hold for drive</span><span><kbd>X</kbd> Hold for lob</span></div>
+<meter id="power-meter" class="visually-hidden" aria-label="Shot power" min="0" max="100" value="0"></meter>
+<p id="status" class="court-status" role="status"></p>
 <div class="touch" aria-label="On-screen controls">
   <div id="move-stick" class="move-stick" role="group" aria-label="Movement stick. Drag in any direction and lift to stop.">
     <span class="stick-thumb" aria-hidden="true"></span>
@@ -50,79 +57,78 @@
     <button type="button" data-key="KeyZ" aria-label="Hold to charge drive or serve">Drive</button>
   </div>
 </div>
-</section>
-<aside id="setup">
-<button id="back-to-court" type="button">Back to court</button>
-<p class="tag">PLAY</p><h2>Take the court</h2>
-<section id="espresso-invite" class="espresso-invite" aria-label="Play with Espresso Cash" hidden>
-<button id="espresso-connect" type="button" hidden>Connect Espresso Cash</button>
-<p id="espresso-account" role="status" hidden>Connected to Espresso Cash</p>
+
+<dialog id="invite-dialog" class="arcade-dialog" aria-labelledby="invite-title">
+<div class="dialog-heading"><h2 id="invite-title">Play with a friend</h2><form method="dialog"><button type="submit" aria-label="Close invite">×</button></form></div>
+<button id="espresso-connect" class="secondary" type="button" hidden>Connect Espresso Cash</button>
 <form id="espresso-host-fields" autocomplete="off">
-<label for="espresso-delivery">Invite by</label>
-<select id="espresso-delivery">
-<option value="link">Share a link</option>
-<option value="username">Espresso username</option>
-</select>
-<div id="espresso-recipient" hidden>
-<label for="espresso-to">Friend’s Espresso Cash username</label>
-<input id="espresso-to" type="text" autocapitalize="none" maxlength="64" placeholder="@username" disabled>
-</div>
+<label for="espresso-to">Espresso username (optional)</label>
+<input id="espresso-to" type="text" autocapitalize="none" maxlength="64" placeholder="@username">
 <button id="espresso-send" type="submit">Create invite link</button>
 </form>
 <button id="espresso-join" type="button" hidden>Join match</button>
 <div id="espresso-share" hidden>
-<label for="espresso-share-url">Espresso invite link</label>
+<label for="espresso-share-url">Invite link</label>
 <input id="espresso-share-url" type="text" readonly>
 <button id="espresso-share-button" type="button">Share invite</button>
 </div>
 <p id="espresso-status" role="status"></p>
-</section>
-<p id="status" role="status">Start a practice match or invite a friend to play online.</p>
-<button id="reset" hidden>Back to lobby</button>
-<button id="open-store" type="button">Players &amp; Store</button>
-<details id="practice-options" class="practice-options">
-<summary>Practice options</summary>
-<button id="practice" type="button">Play vs CPU</button>
-<button id="drill" type="button">3-ball return drill</button>
-</details>
-<hr>
-<div class="playtest-controls">
+<button id="reset" class="secondary" type="button" hidden>Back to court</button>
+</dialog>
+
+<dialog id="menu-dialog" class="arcade-dialog" aria-labelledby="menu-title">
+<div class="dialog-heading"><h2 id="menu-title">Menu</h2><form method="dialog"><button type="submit" aria-label="Close menu">×</button></form></div>
+<div class="menu-actions">
+  <button id="practice" type="button">Play vs CPU</button>
+  <button id="drill" class="secondary" type="button">Return drill</button>
+  <button id="fullscreen" class="secondary" type="button" aria-pressed="false">Fullscreen</button>
+</div>
+<p class="controls-hint"><span class="key-controls">Arrows or WASD to move · Z for Drive · X for Lob.<br></span>Hold Drive to charge, then release near contact.</p>
+<details class="options">
+<summary>Settings</summary>
 <label><input id="sound-enabled" type="checkbox" checked> Court sounds</label>
-<label><input id="log-enabled" type="checkbox"> Log my playtest on this device</label>
-<p id="log-status" role="status">Your log stays on this device until you share it.</p>
-<button id="export-log" type="button">Copy playtest log</button>
-<textarea id="playtest-report" aria-label="Playtest log" rows="5" readonly hidden></textarea>
 <div id="share-gameplay-settings" hidden>
 <label><input id="share-gameplay" type="checkbox" aria-describedby="share-gameplay-help"> Share anonymous gameplay</label>
 <p id="share-gameplay-help">Turning off sharing ends the current match and returns you to the entry screen.</p>
 </div>
-</div>
-<p class="rules">Hold Drive to charge. Move the stick sideways to aim or up and down to adjust lift on returns. In rallies, hold longer to fill the orange power segment. Release Drive to swing and move again. On a return, release just before the ball reaches you. On a serve, a strong sideways aim adds spin. Hold Lob for an automatic lob at contact.</p>
-</aside>
-</div>
-<dialog id="store" class="store" aria-labelledby="store-title">
-<div class="store-heading">
-<h2 id="store-title">Choose a player</h2>
-<form method="dialog"><button type="submit" aria-label="Close player store">Close</button></form>
-</div>
+</details>
+<details id="connection-log" class="options">
+<summary>Diagnostics</summary>
+<label><input id="log-enabled" type="checkbox"> Save playtest log on this device</label>
+<p id="log-status" role="status">The playtest log stays on this device until you share it.</p>
+<button id="export-log" class="secondary" type="button">Copy playtest log</button>
+<textarea id="playtest-report" aria-label="Playtest log" rows="5" readonly hidden></textarea>
+<textarea id="connection-report" aria-label="Connection log" rows="5" readonly></textarea>
+<button id="copy-connection-log" class="secondary" type="button">Copy connection log</button>
+<p id="connection-log-status" role="status"></p>
+</details>
+</dialog>
+
+<dialog id="store" class="arcade-dialog store" aria-labelledby="store-title">
+<div class="dialog-heading"><h2 id="store-title">Choose a player</h2><form method="dialog"><button type="submit" aria-label="Close player store">×</button></form></div>
 <div id="store-roster" class="store-roster"></div>
-<button id="store-connect" type="button">Connect Espresso Cash</button>
-<button id="store-refresh" type="button" hidden>Check purchases</button>
+<button id="store-connect" class="secondary" type="button">Connect Espresso Cash</button>
+<button id="store-refresh" class="secondary" type="button" hidden>Check purchases</button>
 <p id="store-status" role="status"></p>
 </dialog>
-<details id="connection-log" class="connection-log">
-<summary>Connection log</summary>
-<textarea id="connection-report" aria-label="Connection log" rows="8" readonly></textarea>
-<button id="copy-connection-log" type="button">Copy connection log</button>
-<p id="connection-log-status" role="status">This log stays in this tab until you share it.</p>
-</details>
+
+<dialog id="match-results" class="arcade-dialog" aria-labelledby="results-title">
+<div class="dialog-heading"><h2 id="results-title">Match over</h2><form method="dialog"><button type="submit" aria-label="Close results">×</button></form></div>
+<p id="final-score" class="final-score"></p>
+<div id="match-tip" hidden>
+  <button id="send-tip" class="secondary" type="button">Tip 0.10 USDC</button>
+  <p id="tip-status" role="status"></p>
+</div>
+<button id="results-next" type="button">Play again</button>
+</dialog>
+</section>
 </main>
 <script>
   if (new URLSearchParams(location.hash.slice(1)).has('espresso_connect')) {
     document.documentElement.dataset.espressoTicket = 'present';
   }
 </script>
-<script defer src="https://connect.espressocash.com/sdk.js?v=saves"></script>
-<script type="module" src="./app.js?v=bigger-court"></script>
+<script defer src="https://connect.espressocash.com/sdk.js?v=player-tips"></script>
+<script type="module" src="./app.js?v=arcade"></script>
 </body>
 </html>

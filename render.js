@@ -244,7 +244,8 @@ export function makeRenderer(canvas) {
     }
     ctx.textAlign = 'left'; ctx.font = 'bold 15px ui-monospace, monospace';
     ctx.fillStyle = '#f8f6dd';
-    const call = state.ball && state.rally > 0 ? state.call + ' · ' + state.rally + (state.rally === 1 ? ' RETURN' : ' RETURNS') : state.call;
+    const call = state.call === `Player ${state.server + 1} to serve` ? (state.server === view ? 'Your serve' : 'Receive serve') :
+      state.ball && state.rally > 0 ? state.call + ' · ' + state.rally + (state.rally === 1 ? ' RETURN' : ' RETURNS') : state.call;
     if (!state.drill) label(active ? call.toUpperCase() : 'HARD COURT  /  SINGLES',18,66,148);
   };
 }

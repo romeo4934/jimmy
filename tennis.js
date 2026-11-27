@@ -15,13 +15,22 @@ const playerSpeed = .0275;
 const touchSpeed = .0235;
 export const courtBounds = { side: 1.22, net: .11, back: 1.29 };
 
-function player(index) {
-  return { x: 0, y: side(index) * 1.05, vx: 0, vy: 0, swing: 0, charge: null, usedShot: false, power: 0, stroke: null, pending: null };
+function player(index, x = 0) {
+  return { x, y: side(index) * 1.05, vx: 0, vy: 0, swing: 0, charge: null, usedShot: false, power: 0, stroke: null, pending: null };
+}
+
+const serviceSide = points => (points[0] + points[1]) % 2 ? -1 : 1;
+
+function readyPlayers(server, points) {
+  const courtSide = serviceSide(points);
+  // A neutral serve reaches the receiver's baseline wider than its first bounce.
+  return [0, 1].map(index => player(index, side(index) * courtSide * (index === server ? .34 : .61)));
 }
 
 export function newMatch(drill = false) {
+  const points = [0, 0];
   return {
-    players: [player(0), player(1)], points: [0, 0], games: [0, 0], server: 0,
+    players: drill ? [player(0), player(1)] : readyPlayers(0, points), points, games: [0, 0], server: 0,
     winner: null, ball: null, toss: null, pause: 0, rally: 0,
     lastEvent: null, lastShots: [null, null], lastMisses: [null, null],
     drill: drill ? { attempt: 0, hits: 0, wait: 42, closest: null, closestFrame: null, chargeFrame: null } : null,
@@ -99,7 +108,7 @@ function award(match, winner, reason) {
       match.call = 'Player ' + (winner + 1) + ' wins the match';
     }
   }
-  match.players = [player(0), player(1)];
+  match.players = readyPlayers(match.server, match.points);
 }
 
 function aimMovement(p, input, index) {
@@ -144,7 +153,7 @@ function shotLift(input, previous = 0) {
 }
 
 function shotTarget(match, localX, shot, aim, serve, offset = 0) {
-  const courtSide = (match.points[0] + match.points[1]) % 2 ? -1 : 1;
+  const courtSide = serviceSide(match.points);
   return {
     x: serve ? -courtSide * (.36 - aim * courtSide * .21) :
       aim * .78 + localX * .11 + clamp(offset * 2.1, -.28, .28) * (1 - .55 * Math.abs(aim)),
@@ -172,15 +181,20 @@ function ballPace(ball) {
   return Math.hypot(ball.vx * .346, ball.vy);
 }
 
-function launch(match, index, start, shot, aim, serve, power, lift = 0) {
+function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseLeadFrames = null) {
   const orientation = side(index);
   const lob = shot === 'lob';
   const speed = 92 + Math.round(9 * power);
   const incomingSpeed = serve ? 0 : ballPace(match.ball);
   const paceFactor = clamp(1 + (incomingSpeed - .028) * 5, .94, 1.10);
   const returnFrames = (lob ? 74 - 11 * power : 61 - 9 * power) / paceFactor;
-  const frames = Math.round(serve ? serveFlight * 101 / speed : returnFrames);
-  const gravity = serve ? .00040 : lob ? .00064 : .00044 * (1 + .30 * lift);
+  const regularFlight = Math.round(serve ? serveFlight * 101 / speed : returnFrames);
+  const boost = !serve && !lob && releaseLeadFrames !== null
+    ? .22 * clamp((power - .5) / .5, 0, 1) * clamp((14 - releaseLeadFrames) / 12, 0, 1) : 0;
+  const frames = Math.round(regularFlight / (1 + boost));
+  const pace = regularFlight / frames;
+  // Preserve the arc and landing point when the same shot travels faster.
+  const gravity = (serve ? .00040 : lob ? .00064 : .00044 * (1 + .30 * lift)) * pace ** 2;
   const p = match.players[index];
   const offset = (start.x - p.x) * orientation;
   const target = shotTarget(match, start.x * orientation, shot, aim, serve, offset);
@@ -200,7 +214,8 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0) {
       landingX: Math.round(target.x * 1000) / 1000,
       incomingSpeed: Math.round(incomingSpeed * 10000) / 10000,
       returnSpeed: Math.round(ballPace(match.ball) * 10000) / 10000,
-      ...(lob ? {} : { lift: Math.round(lift * 100) / 100 }) })
+      ...(lob ? {} : { lift: Math.round(lift * 100) / 100, releaseLeadFrames,
+        paceBoost: Math.round((pace - 1) * 1000) / 1000 }) })
   };
   match.lastShots[index] = detail;
   event(match, 'hit', detail);
@@ -208,13 +223,13 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0) {
   p.power = power;
   p.charge = null;
   p.usedShot = true;
-  match.call = serve ? (spin ? 'Spin serve · ' : 'Serve · ') + speed + ' MPH' : lob ? 'Lob' : 'Drive';
+  match.call = serve ? (spin ? 'Spin serve · ' : 'Serve · ') + speed + ' MPH' : lob ? 'Lob' : boost >= .1 ? 'Power drive' : 'Drive';
   if (!serve) match.rally++;
 }
 
 function startToss(match, input) {
   const p = match.players[match.server];
-  const courtSide = (match.points[0] + match.points[1]) % 2 ? -1 : 1;
+  const courtSide = serviceSide(match.points);
   p.y = side(match.server) * 1.05;
   p.x = side(match.server) * courtSide * clamp(Math.abs(p.x), .20, .70);
   match.rally = 0;
@@ -355,8 +370,7 @@ function strike(match, p, index, swing) {
     p.usedShot = true;
     p.swing = 12;
   } else {
-    launch(match, index, { x, y, z }, swing.shot, swing.aim, false, swing.power, swing.lift);
-    if (swing.shot === 'drive') match.lastShots[index].releaseLeadFrames = swing.releaseLeadFrames;
+    launch(match, index, { x, y, z }, swing.shot, swing.aim, false, swing.power, swing.lift, swing.releaseLeadFrames);
   }
 }
 
