@@ -1,8 +1,9 @@
 import { setupEspresso } from './espresso.js?v=saved-settings';
-import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
+import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=game-logs';
 import { drawPlayerPreview, makeRenderer } from './render.js?v=oval-rackets';
 import { roster, setupStore } from './store.js?v=saved-settings';
 import { setupPreferences } from './preferences.js?v=saves';
+import { gameLogs, pointMetrics } from './game-logs.js?v=1';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -51,6 +52,40 @@ let remoteShot = null;
 let sentInput;
 let tick = 0;
 let nextFrame = 0;
+let inputMethod = 'unknown';
+let measuredMatch;
+let matchNumber = 0;
+const sharedLog = gameLogs(() => finishMeasuredMatch('closed'));
+const shareGameplay = byId('share-gameplay');
+byId('share-gameplay-settings').hidden = !sharedLog.available;
+shareGameplay.checked = sharedLog.enabled;
+shareGameplay.addEventListener('change', () => {
+  sharedLog.setEnabled(shareGameplay.checked);
+  if (!sharedLog.enabled) measuredMatch = undefined;
+});
+
+function startMeasuredMatch() {
+  if (!sharedLog.enabled || measuredMatch || mode !== 'playing' ||
+      match.winner !== null || match.lastEvent?.drillComplete) return;
+  const now = performance.now();
+  measuredMatch = { number: ++matchNumber, mode: match.drill ? 'return-drill' : peer ? 'online' : 'cpu',
+    start: now, lastPoint: now, points: 0 };
+  sharedLog.record('match_start', { match: measuredMatch.number, mode: measuredMatch.mode, input: inputMethod });
+}
+
+function finishMeasuredMatch(reason) {
+  if (!measuredMatch) return;
+  const { number, mode: matchMode, points, start } = measuredMatch;
+  sharedLog.record('match_end', { match: number, mode: matchMode, reason, points,
+    durationMs: Math.round(performance.now() - start),
+    won: match.winner === null ? null : match.winner === view });
+  measuredMatch = undefined;
+}
+
+function useControls(method) {
+  inputMethod = method;
+  startMeasuredMatch();
+}
 
 function press(key) {
   if (!keys.has(key) && (key === 'KeyZ' || key === 'KeyX')) {
@@ -69,6 +104,7 @@ window.addEventListener('keydown', event => {
     event.target.closest?.('input, textarea, [contenteditable]') ||
     !bindings.has(key) || mode !== 'playing') return;
   event.preventDefault();
+  useControls('keyboard');
   press(key);
 });
 function release(key) {
@@ -123,6 +159,7 @@ function resetDrag() {
 stick.addEventListener('pointerdown', event => {
   if (mode !== 'playing' || drag || event.button !== 0) return;
   event.preventDefault();
+  useControls(event.pointerType === 'touch' ? 'touch' : 'pointer');
   stick.setPointerCapture(event.pointerId);
   if (soundEnabled.checked) audio.unlock();
   drag = {
@@ -177,6 +214,7 @@ document.querySelectorAll('[data-key]').forEach(button => {
   button.addEventListener('pointerdown', event => {
     if (mode !== 'playing') return;
     event.preventDefault();
+    useControls(event.pointerType === 'touch' ? 'touch' : 'pointer');
     button.setPointerCapture(event.pointerId);
     press(button.dataset.key);
   });
@@ -193,7 +231,8 @@ function closePeer() {
   previous?.close();
 }
 
-function lobby(message) {
+function lobby(message, endReason = 'lobby') {
+  finishMeasuredMatch(endReason);
   closePeer();
   mode = 'lobby';
   courtMode.textContent = 'LOBBY';
@@ -219,6 +258,7 @@ function lobby(message) {
 }
 
 function enter(message, focus = true, drill = false) {
+  finishMeasuredMatch('restarted');
   mode = 'playing';
   match = newMatch(drill);
   seenEvent = lateralCorrections = 0;
@@ -235,10 +275,14 @@ function enter(message, focus = true, drill = false) {
   byId('p1-name').textContent = view === 0 ? 'You' : opponent;
   byId('p2-name').textContent = view === 1 ? 'You' : opponent;
   courtMode.textContent = peer ? 'ONLINE · VS ' + opponent : 'PRACTICE · VS CPU';
-  if (focus) court.focus({ preventScroll: true });
+  if (focus) {
+    startMeasuredMatch();
+    court.focus({ preventScroll: true });
+  }
 }
 
 function showSession(message) {
+  finishMeasuredMatch('switched_to_online');
   mode = 'lobby';
   byId('open-store').hidden = true;
   match = newMatch();
@@ -310,7 +354,7 @@ function attach(connection, dataChannel) {
   dataChannel.onclose = () => {
     if (peer !== connection) return;
     recordConnection('WebRTC data channel closed.');
-    lobby('The other player disconnected. Start a new match to reconnect.');
+    lobby('The other player disconnected. Start a new match to reconnect.', 'disconnected');
   };
 }
 
@@ -338,7 +382,7 @@ function createPeer(index) {
     if (peer !== connection) return;
     recordConnection(`WebRTC: ${connection.connectionState}.`);
     if (connection.connectionState === 'failed') {
-      lobby(directConnectionFailed);
+      lobby(directConnectionFailed, 'disconnected');
     }
   };
   return connection;
@@ -404,7 +448,26 @@ function consumeEvent() {
   if (!entry || entry.id <= seenEvent) return;
   seenEvent = entry.id;
   if (soundEnabled.checked) audio.play(entry);
+  if (entry.type === 'serve_miss' && entry.player === view && measuredMatch) {
+    sharedLog.record('serve_miss', { match: measuredMatch.number, mode: measuredMatch.mode,
+      input: inputMethod, reason: 'held_past_toss' });
+  }
   if (entry.type !== 'point' && entry.type !== 'drill') return;
+  if (measuredMatch) {
+    const now = performance.now();
+    const drill = entry.type === 'drill';
+    const shot = drill ? entry.shot : match.lastShots?.[view];
+    const miss = drill ? entry.miss : match.lastMisses?.[view];
+    sharedLog.record(drill ? 'drill_attempt' : 'point', {
+      match: measuredMatch.number, mode: measuredMatch.mode, input: inputMethod,
+      won: drill ? entry.success === true : entry.winner === view,
+      durationMs: Math.round(now - measuredMatch.lastPoint),
+      ...pointMetrics(entry, shot, miss, lateralCorrections)
+    });
+    measuredMatch.points++;
+    measuredMatch.lastPoint = now;
+    if (match.winner !== null || entry.drillComplete) finishMeasuredMatch('completed');
+  }
   if (byId('log-enabled').checked) {
     const { id, type, ...result } = entry;
     const details = type === 'point'

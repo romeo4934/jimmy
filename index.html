@@ -68,6 +68,10 @@
 <p id="log-status" role="status">Your log stays on this device until you share it.</p>
 <button id="export-log" type="button">Copy playtest log</button>
 <textarea id="playtest-report" aria-label="Playtest log" rows="5" readonly hidden></textarea>
+<div id="share-gameplay-settings" hidden>
+<label><input id="share-gameplay" type="checkbox" aria-describedby="share-gameplay-help"> Share anonymous gameplay</label>
+<p id="share-gameplay-help">Send shot timing and match results to help improve the game.</p>
+</div>
 </div>
 <p class="rules">Hold Drive to charge. Move the stick sideways to aim or up and down to adjust lift on returns. In rallies, hold longer to fill the orange power segment. Release Drive to swing and move again. On a return, release just before the ball reaches you. On a serve, a strong sideways aim adds spin. Hold Lob for an automatic lob at contact.</p>
 </aside>
@@ -95,6 +99,6 @@
   }
 </script>
 <script defer src="https://connect.espressocash.com/sdk.js?v=saves"></script>
-<script type="module" src="./app.js?v=saved-settings"></script>
+<script type="module" src="./app.js?v=game-logs"></script>
 </body>
 </html>

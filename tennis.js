@@ -244,6 +244,7 @@ function stepToss(match, input) {
     match.toss = null;
     p.power = 0;
     match.call = 'Toss missed · Try again';
+    event(match, 'serve_miss', { player: match.server });
     return;
   }
   toss.aim = shotAim(p, input, match.server, toss.aim);
