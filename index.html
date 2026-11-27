@@ -5,10 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A retro, two-player browser tennis game.">
 <title>Baseline Club</title>
-<link rel="stylesheet" href="./style.css?v=practice-options">
+<script>
+  if (location.hostname === 'tennis.arcadefleet.com') {
+    let accepted = false;
+    if (location.protocol === 'http:') {
+      const secure = new URL(location.href);
+      secure.protocol = 'https:';
+      location.replace(secure.href);
+    } else {
+      try { accepted = localStorage.getItem('baseline-share-gameplay') === 'yes'; }
+      catch { /* Players can accept for this tab if storage is unavailable. */ }
+    }
+    if (!accepted) document.documentElement.dataset.playLocked = '';
+  }
+</script>
+<link rel="stylesheet" href="./style.css?v=play-entry">
 </head>
 <body>
-<main>
+<section id="play-entry" class="play-entry" aria-labelledby="entry-title">
+<div class="entry-content">
+<h1 id="entry-title">Baseline<br>Club<span aria-hidden="true">.</span></h1>
+<p id="entry-sharing">By choosing Accept &amp; play, you agree to share shot timing, rally lengths, and match results with Espresso using a random browser ID. You can turn off sharing in Setup.</p>
+<button id="entry-play" type="button" aria-describedby="entry-sharing" disabled>Accept &amp; play <span aria-hidden="true">→</span></button>
+</div>
+<div class="entry-art">
+<img src="./entry-court.jpg" width="1536" height="1024" alt="Two pixel-art tennis players rally on a blue court at sunset" loading="lazy" decoding="async">
+</div>
+</section>
+<main id="play-app">
 <header><div class="brand"><span aria-hidden="true">◉</span> BASELINE CLUB</div><div class="edition">ONLINE TENNIS</div></header>
 <div class="layout">
 <section id="game" class="game" aria-label="Tennis match">
@@ -70,7 +94,7 @@
 <textarea id="playtest-report" aria-label="Playtest log" rows="5" readonly hidden></textarea>
 <div id="share-gameplay-settings" hidden>
 <label><input id="share-gameplay" type="checkbox" aria-describedby="share-gameplay-help"> Share anonymous gameplay</label>
-<p id="share-gameplay-help">Send shot timing and match results to help improve the game.</p>
+<p id="share-gameplay-help">Turning off sharing ends the current match and returns you to the entry screen.</p>
 </div>
 </div>
 <p class="rules">Hold Drive to charge. Move the stick sideways to aim or up and down to adjust lift on returns. In rallies, hold longer to fill the orange power segment. Release Drive to swing and move again. On a return, release just before the ball reaches you. On a serve, a strong sideways aim adds spin. Hold Lob for an automatic lob at contact.</p>
@@ -99,6 +123,6 @@
   }
 </script>
 <script defer src="https://connect.espressocash.com/sdk.js?v=saves"></script>
-<script type="module" src="./app.js?v=game-logs"></script>
+<script type="module" src="./app.js?v=play-entry"></script>
 </body>
 </html>

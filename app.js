@@ -3,7 +3,7 @@ import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.
 import { drawPlayerPreview, makeRenderer } from './render.js?v=oval-rackets';
 import { roster, setupStore } from './store.js?v=saved-settings';
 import { setupPreferences } from './preferences.js?v=saves';
-import { gameLogs, pointMetrics } from './game-logs.js?v=1';
+import { gameLogs, pointMetrics } from './game-logs.js?v=2';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -56,13 +56,25 @@ let inputMethod = 'unknown';
 let measuredMatch;
 let matchNumber = 0;
 const sharedLog = gameLogs(() => finishMeasuredMatch('closed'));
+const playLocked = () => sharedLog.required && !sharedLog.enabled;
 const shareGameplay = byId('share-gameplay');
+const entryPlay = byId('entry-play');
 byId('share-gameplay-settings').hidden = !sharedLog.available;
 shareGameplay.checked = sharedLog.enabled;
 shareGameplay.addEventListener('change', () => {
   sharedLog.setEnabled(shareGameplay.checked);
-  if (!sharedLog.enabled) measuredMatch = undefined;
+  if (sharedLog.enabled) return;
+  measuredMatch = undefined;
+  lobby();
+  showEntry();
+  window.scrollTo(0, 0);
+  entryPlay.focus({ preventScroll: true });
 });
+
+function showEntry() {
+  document.documentElement.dataset.playLocked = '';
+  entryPlay.disabled = !sharedLog.available;
+}
 
 function startMeasuredMatch() {
   if (!sharedLog.enabled || measuredMatch || mode !== 'playing' ||
@@ -258,6 +270,7 @@ function lobby(message, endReason = 'lobby') {
 }
 
 function enter(message, focus = true, drill = false) {
+  if (playLocked()) return;
   finishMeasuredMatch('restarted');
   mode = 'playing';
   match = newMatch(drill);
@@ -584,8 +597,25 @@ function start() {
   }
   enter('', false);
 }
-start();
-if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();
+function openGame() {
+  delete document.documentElement.dataset.playLocked;
+  start();
+  if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();
+}
+
+entryPlay.onclick = () => {
+  if (!playLocked()) return;
+  sharedLog.setEnabled(true);
+  if (!sharedLog.enabled) return;
+  shareGameplay.checked = true;
+  openGame();
+  if (!espressoLobby.isInvitePage) court.focus({ preventScroll: true });
+};
+
+if (playLocked()) {
+  lobby();
+  showEntry();
+} else openGame();
 setupStore({
   client: espressoLobby.client,
   signIn: espressoLobby.signIn,

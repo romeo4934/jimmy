@@ -16,7 +16,7 @@ L’origine `https://tennis.arcadefleet.com` est vérifiée dans [Espresso Conne
 
 ### Journaux de jeu
 
-Dans **Setup**, l’option **Share anonymous gameplay** envoie les résultats des points et de l’entraînement, le timing, la puissance et le type de commande. Elle est désactivée par défaut. L’identifiant anonyme est propre au navigateur. Les pseudos, les wallets et les invitations restent hors de ces journaux. **Log my playtest on this device** permet toujours d’exporter un journal local.
+Sur le site public, le bouton **Accept & play** active le partage des statistiques de jeu et ouvre le court. Le choix est conservé dans ce navigateur. Dans **Setup**, désactiver **Share anonymous gameplay** termine la partie en cours et rouvre l’écran d’entrée. Les journaux contiennent les résultats des points et de l’entraînement, le timing, la puissance et le type de commande. L’identifiant anonyme est propre au navigateur. Les pseudos, les wallets et les invitations restent hors de ces journaux. **Log my playtest on this device** permet toujours d’exporter un journal local.
 
 Pour analyser les échanges, lire le jeu `tennis.arcadefleet.com` avec la clé `GAME_LOGS_KEY` depuis un environnement privé. Filtrer par mode et type de commande avant de comparer les taux de retour, les durées de charge ou les motifs d’échec. [API Espresso Game Logs](https://mcp.espressocash.com/#game-logs)
 

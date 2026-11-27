@@ -66,6 +66,65 @@ canvas{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-use
 }
 
 
+.play-entry{display:none}
+[data-play-locked] #play-app{display:none}
+[data-play-locked] .play-entry{
+  display:grid;
+  grid-template-columns:minmax(17rem,2fr) minmax(0,3fr);
+  min-height:100vh;
+  min-height:100dvh;
+  background:#102c29;
+  color:#f9f6e1;
+}
+.entry-content{
+  align-self:center;
+  justify-self:center;
+  width:100%;
+  max-width:37rem;
+  padding:clamp(1.5rem,4.4vw,5rem);
+  padding-left:max(clamp(1.5rem,4.4vw,5rem), env(safe-area-inset-left));
+}
+.entry-content h1{
+  margin:0 0 clamp(1rem,2.6vw,2.25rem);
+  font-size:clamp(2.25rem,6.6vw,7rem);
+  font-weight:900;
+  line-height:.88;
+  letter-spacing:-.05em;
+}
+.entry-content h1 span{color:var(--lime)}
+.entry-content p{
+  max-width:28rem;
+  margin:0 0 clamp(1rem,2vw,1.6rem);
+  color:#d1ddd0;
+  font-size:clamp(.875rem,1.4vw,1.0625rem);
+  line-height:1.5;
+}
+.entry-content button{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:60px;
+  margin:0;
+  padding:12px 18px;
+  border-color:transparent;
+  font-size:clamp(1.125rem,2.25vw,1.5rem);
+  font-weight:850;
+}
+.entry-content button:focus-visible{outline:2px solid #f9f6e1;outline-offset:5px}
+.entry-art{position:relative;min-width:0;background:#294f77}
+.entry-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:49% 50%}
+@media (max-width:650px) and (orientation:portrait){
+  [data-play-locked] .play-entry{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .entry-art{order:-1;height:clamp(10rem,39dvh,19rem)}
+  .entry-content h1{font-size:clamp(3.5rem,11vw,5rem)}
+}
+@media (orientation:landscape) and (max-height:450px){
+  .entry-content{padding-block:max(1.125rem,env(safe-area-inset-top)) max(1.125rem,env(safe-area-inset-bottom))}
+  .entry-content h1{font-size:clamp(2.1rem,11dvh,3.25rem)}
+  .entry-content button{min-height:52px}
+}
+
 .playtest-controls label{display:block;margin-bottom:8px}
 .playtest-controls input{vertical-align:middle}
 .playtest-controls button:disabled{cursor:default}

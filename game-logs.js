@@ -7,6 +7,7 @@ const batchSize = 50;
 // The public intake used by Espresso's brij-log.js. Own the queue so opting
 // out drops unsent data and stops lifecycle events as well as gameplay events.
 export function gameLogs(onPageEnd) {
+  const required = location.hostname === host;
   const available = location.origin === `https://${host}`;
   let consent = false;
   let session;
@@ -67,7 +68,7 @@ export function gameLogs(onPageEnd) {
     flush(true);
   });
 
-  return { available, get enabled() { return consent; }, record, setEnabled };
+  return { required, available, get enabled() { return consent; }, record, setEnabled };
 }
 
 const numberFields = (source, keys) => Object.fromEntries(keys.flatMap(key => {
