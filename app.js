@@ -1,7 +1,8 @@
-import { setupEspresso } from './espresso.js?v=roster';
+import { setupEspresso } from './espresso.js?v=saved-settings';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=timing-flow';
 import { drawPlayerPreview, makeRenderer } from './render.js?v=oval-rackets';
-import { roster, setupStore } from './store.js?v=roster';
+import { roster, setupStore } from './store.js?v=saved-settings';
+import { setupPreferences } from './preferences.js?v=saves';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -18,6 +19,13 @@ const render = makeRenderer(court);
 const audio = courtSound();
 const log = playLog();
 const recordConnection = connectionLog();
+const preferences = setupPreferences({
+  validPlayer: id => roster.some(player => player.id === id),
+  record: recordConnection
+});
+const soundEnabled = byId('sound-enabled');
+preferences.onChange('sound', enabled => { soundEnabled.checked = enabled ?? true; });
+soundEnabled.addEventListener('change', () => preferences.set('sound', soundEnabled.checked));
 let seenEvent = 0;
 let lateralCorrections = 0;
 const refreshLog = () => { byId('export-log').disabled = !log.count; };
@@ -46,7 +54,7 @@ let nextFrame = 0;
 
 function press(key) {
   if (!keys.has(key) && (key === 'KeyZ' || key === 'KeyX')) {
-    if (byId('sound-enabled').checked) audio.unlock();
+    if (soundEnabled.checked) audio.unlock();
     localShot = key === 'KeyZ' ? 'drive' : 'lob';
     if (key === 'KeyZ' && drag) {
       drag.aimOnly = true;
@@ -116,7 +124,7 @@ stick.addEventListener('pointerdown', event => {
   if (mode !== 'playing' || drag || event.button !== 0) return;
   event.preventDefault();
   stick.setPointerCapture(event.pointerId);
-  if (byId('sound-enabled').checked) audio.unlock();
+  if (soundEnabled.checked) audio.unlock();
   drag = {
     id: event.pointerId, startX: event.clientX, startY: event.clientY,
     lastX: event.clientX, lastY: event.clientY, axis: null, corrected: false,
@@ -343,7 +351,7 @@ practiceButton.onclick = () => {
 };
 byId('drill').onclick = () => {
   practiceOptions.open = false;
-  if (byId('sound-enabled').checked) audio.unlock();
+  if (soundEnabled.checked) audio.unlock();
   enter('Return drill · Read the bounce marker, hold Drive, then release near contact.', true, true);
   game.scrollIntoView({ block: 'start' });
 };
@@ -395,7 +403,7 @@ function consumeEvent() {
   const entry = match.lastEvent;
   if (!entry || entry.id <= seenEvent) return;
   seenEvent = entry.id;
-  if (byId('sound-enabled').checked) audio.play(entry);
+  if (soundEnabled.checked) audio.play(entry);
   if (entry.type !== 'point' && entry.type !== 'drill') return;
   if (byId('log-enabled').checked) {
     const { id, type, ...result } = entry;
@@ -459,6 +467,9 @@ function frame(now) {
 }
 const espressoLobby = setupEspresso({
   record: recordConnection,
+  onConnection(sdk, connection, refresh) {
+    preferences.connect(sdk, connection?.walletAddress || connection?.connectionId, refresh);
+  },
   selectedPlayer: () => ownPlayer.id,
   async createOffer() {
     showSession('Your friend joined. Connecting…');
@@ -515,6 +526,7 @@ if (espressoLobby.isInvitePage) void espressoLobby.joinAccepted();
 setupStore({
   client: espressoLobby.client,
   signIn: espressoLobby.signIn,
+  preferences,
   drawPreview: drawPlayerPreview,
   setPlayer(player) { ownPlayer = player; }
 });

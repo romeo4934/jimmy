@@ -11,14 +11,12 @@ export function allowedPlayer(id, items = [], fallback = roster[0]) {
   return player && (!player.paid || items.includes(id)) ? player : fallback;
 }
 
-export function setupStore({ client, signIn, drawPreview, setPlayer }) {
+export function setupStore({ client, signIn, preferences, drawPreview, setPlayer }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('store');
   const connect = byId('store-connect');
   const refreshButton = byId('store-refresh');
   const status = byId('store-status');
-  let preference;
-  try { preference = localStorage.getItem('baseline-player'); } catch { /* Selection stays in this tab. */ }
   let busy = false, connected = false, receiptsChecked = false;
   let owned = [];
   let pendingItem;
@@ -42,7 +40,7 @@ export function setupStore({ client, signIn, drawPreview, setPlayer }) {
   });
 
   function update() {
-    const selected = allowedPlayer(preference, owned);
+    const selected = allowedPlayer(preferences.get('player'), owned);
     setPlayer(selected);
     for (const { player, button } of cards) {
       const unlocked = !player.paid || owned.includes(player.id);
@@ -87,16 +85,10 @@ export function setupStore({ client, signIn, drawPreview, setPlayer }) {
     }
   }
 
-  function select(player) {
-    preference = player.id;
-    try { localStorage.setItem('baseline-player', preference); } catch { /* Selection stays in this tab. */ }
-    update();
-  }
-
   async function activate(player) {
     if (busy) return;
     if (!player.paid || owned.includes(player.id)) {
-      select(player);
+      preferences.set('player', player.id);
       status.textContent = '';
       return;
     }
@@ -128,7 +120,7 @@ export function setupStore({ client, signIn, drawPreview, setPlayer }) {
         await checkPurchases();
       }
       if (owned.includes(player.id)) {
-        select(player);
+        preferences.set('player', player.id);
         status.textContent = `${player.name} is unlocked and selected.`;
       } else {
         status.textContent = 'Payment approved. Check your purchases again in a moment.';
@@ -155,6 +147,6 @@ export function setupStore({ client, signIn, drawPreview, setPlayer }) {
   };
   connect.onclick = () => refresh(true);
   refreshButton.onclick = () => refresh();
-  update();
+  preferences.onChange('player', update);
   void refresh();
 }

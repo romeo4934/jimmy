@@ -8,7 +8,7 @@ Pour jouer avec un ami, ouvre **Setup**. Clique sur **Connect Espresso Cash** si
 
 [Espresso Rooms](https://docs.espressocash.com/#rooms) transmet les informations de connexion entre les deux navigateurs. Le match démarre après **Accept and play**, puis les échanges du jeu passent directement par WebRTC. Les invitations sont valables une heure. Espresso avertit l’invitant quand son ami accepte. La notification rouvre le match, même si l’onglet initial a été fermé.
 
-**Players & Store** propose Alex et Mika gratuitement, puis Jade et Sol à 0,10 USDC chacun. Espresso conserve les achats et vérifie les tenues payantes dans les parties en ligne. Les joueurs ont les mêmes caractéristiques de jeu. Pour activer le paiement, le propriétaire du site doit choisir **Pay me in this wallet** dans Espresso Connect Developers.
+**Players & Store** propose Alex et Mika gratuitement, puis Jade et Sol à 0,10 USDC chacun. Espresso conserve les achats et vérifie les tenues payantes dans les parties en ligne. Les joueurs ont les mêmes caractéristiques de jeu. [Espresso Saves](https://docs.espressocash.com/#saves) synchronise le joueur choisi et les sons du court entre les appareils connectés. Pour activer le paiement, le propriétaire du site doit choisir **Pay me in this wallet** dans Espresso Connect Developers.
 
 ### Déploiement Espresso Cash
 

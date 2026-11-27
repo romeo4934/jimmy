@@ -1,4 +1,4 @@
-import { allowedPlayer, roster } from './store.js?v=roster';
+import { allowedPlayer, roster } from './store.js?v=saved-settings';
 
 const byId = id => document.getElementById(id);
 const fixedGameTitle = 'Tennis at Baseline Club';
@@ -48,7 +48,7 @@ async function roomPlayer(room, sender, selected, fallback = 'Friend') {
   return { name, appearance: allowedPlayer(selected, items, roster[1]) };
 }
 
-export function setupEspresso({ record, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer, selectedPlayer }) {
+export function setupEspresso({ record, onConnection, createOffer, inviteReady, takeOffer, applyAnswer, cancelPeer, selectedPlayer }) {
   const params = new URLSearchParams(location.search);
   const incoming = params.get('espresso_invite');
   const legacyInvite = new URLSearchParams(location.hash.slice(1)).has('invite') || Boolean(incoming && params.has('room'));
@@ -84,11 +84,12 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     }
     return sdk;
   }
-  function showConnection(connection) {
+  function showConnection(connection, refresh = false) {
     needsConnection = !connection;
     connectButton.hidden = isInvitePage || Boolean(connection);
     if (isInvitePage) join.textContent = connection ? 'Retry joining' : 'Connect and join';
     account.hidden = !connection;
+    onConnection(sdk, connection, refresh);
   }
   async function refreshConnection() {
     if (pendingSignIn) return;
@@ -98,7 +99,7 @@ export function setupEspresso({ record, createOffer, inviteReady, takeOffer, app
     catch (error) { record('Saved-session check failed.', error); }
     if (check === connectionCheck) {
       if (needsConnection !== !connection) record(connection ? 'Espresso connection found.' : 'No saved Espresso connection.');
-      showConnection(connection);
+      showConnection(connection, true);
     }
   }
   async function completeSignIn(interactive) {
