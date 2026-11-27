@@ -1,7 +1,7 @@
-import { setupEspresso } from './espresso.js?v=arcade';
+import { setupEspresso } from './espresso.js?v=store-roster';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=power-drive';
-import { drawPlayerPreview, makeRenderer } from './render.js?v=arcade';
-import { roster, setupStore } from './store.js?v=arcade';
+import { drawPlayerPreview, makeRenderer } from './render.js?v=store-roster';
+import { roster, setupStore } from './store.js?v=store-roster';
 import { setupPreferences } from './preferences.js?v=saves';
 import { gameLogs, pointMetrics } from './game-logs.js?v=arcade';
 

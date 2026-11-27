@@ -6,24 +6,29 @@ export function project(x, y, z = 0) {
 }
 
 function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
-  const { shirt, trim, skin, hair, shorts, style } = player;
+  const { shirt, trim, skin, hair, shorts, style, kit } = player;
   const rect = (color, x, y, w, h) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
   const ink = '#172a33';
+  const tights = kit === 'compression';
+  const dress = kit === 'dress';
+  const calf = tights ? '#27425c' : skin;
+  const sock = dress ? trim : '#d7e2df';
+  const shoe = tights ? '#69ecd1' : '#f5edd9';
   const racketX = raised ? 27 : 21 + 8 * followThrough;
   const racketY = raised ? -32 : -14 - 9 * followThrough;
   ctx.save();
-  ctx.scale(direction, 1);
+  ctx.scale(direction * (tights ? 1.1 : dress ? .94 : 1), 1);
   // Offset the feet and knees with the stride. Dark edges keep the pose readable across the net.
   rect(ink, -12, -15, 9, 12 - stride);
   rect(ink, 3, -14, 9, 11 + stride);
-  rect(skin, -11, -13, 6, 8 - stride);
-  rect(skin, 4, -12, 6, 7 + stride);
-  rect('#d7e2df', -12, -6 - stride, 6, 4);
-  rect('#d7e2df', 5, -5 + stride, 6, 4);
+  rect(calf, -11, -13, 6, 8 - stride);
+  rect(calf, 4, -12, 6, 7 + stride);
+  rect(sock, -12, -6 - stride, 6, 4);
+  rect(sock, 5, -5 + stride, 6, 4);
   rect(ink, -15, -3 - stride, 10, 4);
   rect(ink, 4, -2 + stride, 11, 4);
-  rect('#f5edd9', -14, -3 - stride, 8, 2);
-  rect('#f5edd9', 5, -2 + stride, 9, 2);
+  rect(shoe, -14, -3 - stride, 8, 2);
+  rect(shoe, 5, -2 + stride, 9, 2);
   rect(ink, -9, -19, 18, 8);
   rect(shorts, -8, -18, 7, 6);
   rect(shorts, 1, -18, 7, 6);
@@ -34,22 +39,42 @@ function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
   rect(trim, -7, -23, 4, 4);
   rect(skin, -13, -29, 4, 9);
   rect('#f5edd9', -13, -22, 4, 2);
+  if (tights) {
+    rect(skin, -11, -33, 4, 5);
+    rect('#146666', -9, -21, 18, 3);
+    rect('#408b91', -11, -13, 1, Math.max(2, 7 - stride));
+    rect('#408b91', 9, -12, 1, 6 + stride);
+    for (let i = 0; i < 5; i++) rect(trim, -6 + i * 2, -30 + i, 3, 2);
+  } else if (dress) {
+    rect(shorts, -13, -22, 25, 10);
+    rect(shorts, -16, -17, 31, 5);
+    rect(shirt, -12, -21, 23, 7);
+    rect(shirt, -14, -17, 27, 3);
+    rect(trim, -10, -24, 19, 2);
+    rect('#c97637', -7, -19, 2, 5);
+    rect('#c97637', 5, -19, 2, 5);
+  }
   rect(skin, -4, -36, 8, 5);
   rect(ink, -7, -46, 14, 13);
   rect(skin, -5, -44, 11, 10);
   rect(hair, -6, -46, 12, 4);
   rect(hair, -6, -43, 3, 5);
   rect(ink, 3, -40, 2, 1);
-  if (style === 'ponytail') {
-    rect(hair, -9, -43, 4, 8);
-    rect(trim, -8, -43, 2, 2);
+  if (style === 'cap') {
+    rect(ink, -8, -49, 14, 6);
+    rect('#e6ecef', -7, -48, 12, 4);
+    rect('#e6ecef', 4, -45, 7, 2);
   } else if (style === 'curls') {
-    rect(hair, -7, -47, 4, 5);
-    rect(hair, -2, -49, 5, 5);
-    rect(hair, 3, -48, 4, 5);
+    rect(ink, -10, -50, 19, 8);
+    rect(hair, -8, -51, 15, 7);
+    rect(hair, -5, -54, 9, 4);
+    rect('#654638', -4, -52, 5, 2);
+    rect(trim, -8, -44, 16, 3);
   } else if (style === 'visor') {
-    rect(trim, -6, -45, 12, 3);
-    rect('#fff0c4', 5, -44, 4, 2);
+    rect(hair, -8, -46, 5, 12);
+    rect(hair, -11, -39, 5, 12);
+    rect(trim, -7, -45, 15, 3);
+    rect('#ffffff', 5, -44, 7, 2);
   }
   ctx.beginPath();
   ctx.moveTo(8, -28);
@@ -66,7 +91,7 @@ function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
   rect(ink, -2, 4, 4, 9);
   rect('#b4916f', -1, 8, 2, 4);
   ctx.beginPath();
-  ctx.ellipse(0, -2, 5.8, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -2, dress ? 6.5 : 5.8, tights ? 8.8 : dress ? 7.2 : 8, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#304d51';
   ctx.fill();
   ctx.strokeStyle = ink;
@@ -85,9 +110,18 @@ function drawAthlete(ctx, player, stride, raised, followThrough, direction) {
 
 export function drawPlayerPreview(canvas, player) {
   const ctx = canvas.getContext('2d');
-  ctx.translate(51, 85);
-  ctx.scale(1.6, 1.6);
-  drawAthlete(ctx, player, 2, true, 0, 1);
+  const { width, height } = canvas;
+  ctx.save();
+  ctx.fillStyle = '#203a38'; ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#2a544a'; ctx.fillRect(0, 90, width, height - 90);
+  ctx.fillStyle = '#58756b'; ctx.fillRect(0, 90, width, 2);
+  ctx.translate(Math.round(width * .43), Math.round(height * .86));
+  ctx.fillStyle = '#183533';
+  ctx.beginPath(); ctx.ellipse(0, 0, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.scale(1.9, 1.9);
+  const lowRacket = player.kit === 'compression';
+  drawAthlete(ctx, player, player.kit === 'dress' ? -1 : 2, !lowRacket, lowRacket ? .45 : 0, 1);
+  ctx.restore();
 }
 
 export function makeRenderer(canvas) {

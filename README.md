@@ -8,7 +8,7 @@ Le jeu ouvre directement le court contre le CPU. Pour jouer avec un ami, clique 
 
 [Espresso Rooms](https://docs.espressocash.com/#rooms) transmet les informations de connexion entre les deux navigateurs. Le match démarre après **Accept and play**, puis les échanges du jeu passent directement par WebRTC. Les invitations sont valables une heure. Espresso avertit l’invitant quand son ami accepte. La notification rouvre le match, même si l’onglet initial a été fermé.
 
-**Players** est accessible depuis le court. Alex et Mika sont gratuits. Jade et Sol coûtent 0,10 USDC chacun. Espresso conserve les achats et vérifie les tenues payantes dans les parties en ligne. Les joueurs ont les mêmes caractéristiques de jeu. [Espresso Saves](https://docs.espressocash.com/#saves) synchronise le joueur choisi et les sons du court. Après un match en ligne, l’écran du score permet d’envoyer un pourboire de 0,10 USDC à l’adversaire, avec confirmation dans Espresso Cash. [Espresso Tips](https://docs.espressocash.com/#tips)
+Le bouton **Store** est accessible depuis le court. Carlos et Yannick sont gratuits. Casper et Naomi coûtent 0,10 USDC chacun. Espresso conserve les achats et vérifie les tenues payantes dans les parties en ligne. Les joueurs ont les mêmes caractéristiques de jeu. [Espresso Saves](https://docs.espressocash.com/#saves) synchronise le joueur choisi et les sons du court. Après un match en ligne, l’écran du score permet d’envoyer un pourboire de 0,10 USDC à l’adversaire, avec confirmation dans Espresso Cash. [Espresso Tips](https://docs.espressocash.com/#tips)
 
 ### Déploiement Espresso Cash
 

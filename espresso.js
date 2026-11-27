@@ -1,4 +1,4 @@
-import { allowedPlayer, roster } from './store.js?v=saved-settings';
+import { allowedPlayer, roster } from './store.js?v=store-roster';
 
 const byId = id => document.getElementById(id);
 const fixedGameTitle = 'Tennis at Baseline Club';

@@ -259,8 +259,8 @@ button.secondary:hover { background: #31554b; }
 
 .store { width: min(42rem, calc(100% - 32px)); }
 .store-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: .6rem; }
-.store-roster article { min-width: 0; padding: 8px; border: 1px solid var(--panel-border); border-radius: 7px; }
-.store-roster canvas { width: 100%; height: 68px; object-fit: contain; display: block; background: #254b43; }
+.store-roster article { min-width: 0; padding: 8px; border: 1px solid var(--kit-accent, var(--panel-border)); border-radius: 7px; }
+.store-roster canvas { width: 100%; height: auto; max-height: 9rem; object-fit: contain; display: block; background: #203a38; }
 .store-roster h3 { margin: .4rem 0 0; font-size: 1rem; }
 .store-roster p { margin: .2rem 0 .4rem; }
 .store-roster button { width: 100%; padding: .4rem; }

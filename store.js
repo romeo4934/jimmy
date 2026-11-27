@@ -1,9 +1,9 @@
 const price = '0.10';
 export const roster = [
-  { id: 'alex', name: 'Alex', shirt: '#cedd62', trim: '#eff5a2', skin: '#d99568', hair: '#382b2c', shorts: '#263f4f', style: 'short' },
-  { id: 'mika', name: 'Mika', shirt: '#e87965', trim: '#ffb494', skin: '#bc7854', hair: '#282737', shorts: '#394060', style: 'ponytail' },
-  { id: 'player:jade', name: 'Jade', shirt: '#47b6a6', trim: '#adf2d7', skin: '#976046', hair: '#271f22', shorts: '#283754', style: 'curls', paid: true },
-  { id: 'player:sol', name: 'Sol', shirt: '#e9ad4d', trim: '#ffe49b', skin: '#edb688', hair: '#925737', shorts: '#3c365e', style: 'visor', paid: true }
+  { id: 'alex', name: 'Carlos', shirt: '#cedd62', trim: '#eff5a2', skin: '#d99568', hair: '#382b2c', shorts: '#263f4f', style: 'short' },
+  { id: 'mika', name: 'Yannick', shirt: '#e87965', trim: '#ffb494', skin: '#bc7854', hair: '#482921', shorts: '#394060', style: 'cap' },
+  { id: 'player:jade', name: 'Casper', shirt: '#2daea5', trim: '#a3ffe1', skin: '#976046', hair: '#271f22', shorts: '#20334e', style: 'curls', kit: 'compression', paid: true },
+  { id: 'player:sol', name: 'Naomi', shirt: '#ffbb42', trim: '#fff2b6', skin: '#b67653', hair: '#312338', shorts: '#463655', style: 'visor', kit: 'dress', paid: true }
 ];
 
 export function allowedPlayer(id, items = [], fallback = roster[0]) {
@@ -22,9 +22,10 @@ export function setupStore({ client, signIn, preferences, openPanel, drawPreview
   let pendingItem;
   const cards = roster.map(player => {
     const card = document.createElement('article');
+    if (player.paid) card.style.setProperty('--kit-accent', player.trim);
     const canvas = document.createElement('canvas');
-    canvas.width = 112;
-    canvas.height = 96;
+    canvas.width = 160;
+    canvas.height = 128;
     canvas.setAttribute('aria-hidden', 'true');
     drawPreview(canvas, player);
     const name = document.createElement('h3');
