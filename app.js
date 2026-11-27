@@ -1,6 +1,6 @@
 import { setupEspresso } from './espresso.js?v=saved-settings';
 import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=game-logs';
-import { drawPlayerPreview, makeRenderer } from './render.js?v=oval-rackets';
+import { drawPlayerPreview, makeRenderer } from './render.js?v=bigger-court';
 import { roster, setupStore } from './store.js?v=saved-settings';
 import { setupPreferences } from './preferences.js?v=saves';
 import { gameLogs, pointMetrics } from './game-logs.js?v=2';

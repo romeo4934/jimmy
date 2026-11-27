@@ -92,7 +92,28 @@ export function drawPlayerPreview(canvas, player) {
 
 export function makeRenderer(canvas) {
   const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  const baseWidth = canvas.width;
+  const baseHeight = canvas.height;
+  let scaleX = 1, scaleY = 1, originX = 0, originY = 0, spriteAspect = 1;
+  new ResizeObserver(([{ contentRect: { width, height } }]) => {
+    if (!width || !height) return;
+    const wide = getComputedStyle(canvas).getPropertyValue('--court-fill').trim() === '1';
+    const density = wide ? Math.min(window.devicePixelRatio || 1, 2, 1800 / Math.max(width, height)) : 1;
+    const nextWidth = wide ? Math.round(width * density) : baseWidth;
+    const nextHeight = wide ? Math.round(height * density) : baseHeight;
+    if (canvas.width !== nextWidth) canvas.width = nextWidth;
+    if (canvas.height !== nextHeight) canvas.height = nextHeight;
+    ctx.imageSmoothingEnabled = false;
+
+    // Trim the empty space below the near player's movement bounds. Widen
+    // the court for landscape while keeping the players and ball undistorted.
+    const viewHeight = wide ? 500 : baseHeight;
+    scaleY = Math.min(nextWidth / baseWidth, nextHeight / viewHeight);
+    scaleX = Math.min(nextWidth / baseWidth, scaleY * (wide ? 1.43 : 1));
+    originX = (nextWidth - baseWidth * scaleX) / 2;
+    originY = (nextHeight - viewHeight * scaleY) / 2;
+    spriteAspect = scaleY / scaleX;
+  }).observe(canvas);
   const flip = (x, y, view) => view === 1 ? [-x, -y] : [x, y];
   const shape = (points, fill, stroke, width = 2) => {
     ctx.beginPath();
@@ -106,11 +127,19 @@ export function makeRenderer(canvas) {
     ctx.beginPath(); ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
     ctx.fillStyle = fill; ctx.fill();
   };
+  const label = (text, x, y, width) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(spriteAspect, 1);
+    if (width === undefined) ctx.fillText(text, 0, 0);
+    else ctx.fillText(text, 0, 0, width);
+    ctx.restore();
+  };
   function player(p, index, view, stateToss, appearance) {
     const [x, y] = project(...flip(p.x, p.y, view));
     const stride = p.vx || p.vy ? Math.round(3 * Math.sin((p.x + p.y) * 46)) : 0;
     const scale = index === view ? 1.48 : 1.15;
-    ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(scale, scale);
+    ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(scale * spriteAspect, scale);
     ellipse(0, 0, 15, 5, '#142d3280');
     const raised = p.charge || stateToss || p.stroke && !p.swing;
     const followThrough = p.swing > 6 ? (p.power ?? 0) : 0;
@@ -122,11 +151,11 @@ export function makeRenderer(canvas) {
     const position = flip(b.x,b.y,view);
     const [sx, sy] = project(...position);
     const [x,y] = project(...position,b.z);
-    ellipse(sx,sy,11,5,'#10252ed0');
-    ellipse(sx,sy,6,2.6,'#13262b');
-    ellipse(x,y,8,8,'#152f32');
-    ellipse(x,y,6.6,6.6,'#f5ff97');
-    ellipse(x-1.5,y-2.2,2,2,'#ffffe2');
+    ellipse(sx,sy,11 * spriteAspect,5,'#10252ed0');
+    ellipse(sx,sy,6 * spriteAspect,2.6,'#13262b');
+    ellipse(x,y,8 * spriteAspect,8,'#152f32');
+    ellipse(x,y,6.6 * spriteAspect,6.6,'#f5ff97');
+    ellipse(x-1.5 * spriteAspect,y-2.2,2 * spriteAspect,2,'#ffffe2');
   }
   function aimArrow(x, feet, destination) {
     const [tx, ty] = project(destination.x, destination.y);
@@ -156,7 +185,9 @@ export function makeRenderer(canvas) {
     }
   }
   return (state, view, active, destination, maxPower, ownPlayer, opponentPlayer) => {
+    ctx.resetTransform();
     ctx.fillStyle = '#254b43'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.setTransform(scaleX, 0, 0, scaleY, originX, originY);
     ctx.fillStyle = '#172f34'; ctx.fillRect(0,0,800,48);
     for (let x = -8; x < 800; x += 24) {
       shape([[x,1],[x+17,1],[x+17,32],[x,32]],'#203f42');
@@ -192,7 +223,7 @@ export function makeRenderer(canvas) {
       if (state.drill && p.stroke && !p.swing) {
         ctx.textAlign = 'center'; ctx.font = 'bold 12px ui-monospace, monospace';
         ctx.fillStyle = '#f8f6dd';
-        ctx.fillText(p.stroke.toUpperCase(),x,feet-70);
+        label(p.stroke.toUpperCase(),x,feet-70);
       }
       if (destination) aimArrow(x, feet, destination);
       if (destination?.lift) {
@@ -200,20 +231,20 @@ export function makeRenderer(canvas) {
         ctx.textAlign = x > 718 ? 'right' : 'left';
         ctx.font = 'bold 12px ui-monospace, monospace';
         ctx.fillStyle = '#f8f6dd';
-        ctx.fillText('LIFT ' + (lift > 0 ? '+' : '') + lift + '%', x > 718 ? x-23 : x+23, feet-52);
+        label('LIFT ' + (lift > 0 ? '+' : '') + lift + '%', x > 718 ? x-23 : x+23, feet-52);
       }
       if (destination?.releaseReady) {
         ctx.fillStyle = '#102c29';
-        ctx.fillRect(x-34,feet-94,68,20);
+        ctx.fillRect(x-34 * spriteAspect,feet-94,68 * spriteAspect,20);
         ctx.textAlign = 'center'; ctx.font = 'bold 13px ui-monospace, monospace';
         ctx.fillStyle = '#fff6af';
-        ctx.fillText('RELÂCHE',x,feet-80);
+        label('RELÂCHE',x,feet-80);
       }
       if (destination || p.charge || p.swing && p.power) powerBar(x, feet, p.power, maxPower);
     }
     ctx.textAlign = 'left'; ctx.font = 'bold 15px ui-monospace, monospace';
     ctx.fillStyle = '#f8f6dd';
     const call = state.ball && state.rally > 0 ? state.call + ' · ' + state.rally + (state.rally === 1 ? ' RETURN' : ' RETURNS') : state.call;
-    if (!state.drill) ctx.fillText(active ? call.toUpperCase() : 'HARD COURT  /  SINGLES',18,66,148);
+    if (!state.drill) label(active ? call.toUpperCase() : 'HARD COURT  /  SINGLES',18,66,148);
   };
 }
