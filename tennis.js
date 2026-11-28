@@ -13,6 +13,9 @@ const swingFrames = 23;
 const swingAnimationFrames = 17;
 const playerSpeed = .0275;
 const touchSpeed = .0235;
+const courtWidthToLength = .346;
+const maxReturnAngle = 59;
+const radiansPerDegree = Math.PI / 180;
 export const courtBounds = { side: 1.22, net: .11, back: 1.29 };
 
 function player(index, x = 0) {
@@ -152,13 +155,23 @@ function shotLift(input, previous = 0) {
   return input.fixedMove ? 0 : previous;
 }
 
-function shotTarget(match, localX, shot, aim, serve, offset = 0) {
-  const courtSide = serviceSide(match.points);
-  return {
-    x: serve ? -courtSide * (.36 - aim * courtSide * .21) :
-      aim * .78 + localX * .11 + clamp(offset * 2.1, -.28, .28) * (1 - .55 * Math.abs(aim)),
-    y: serve ? -.49 : shot === 'lob' ? -.92 : -.80
-  };
+function shotTarget(match, index, contactPoint, shot, aim, serve) {
+  if (serve) return { x: -serviceSide(match.points) * .36 + aim * .21, y: -.49 };
+
+  const p = match.players[index];
+  const orientation = side(index);
+  const x = contactPoint.x * orientation;
+  const y = contactPoint.y * orientation;
+  const playerX = p.x * orientation;
+  const netProximity = clamp(1 - y, 0, 1);
+  // Smooth the position and contact influences for the analog stick.
+  const positionAngle = -playerX * (6 + 4 * netProximity);
+  const contactAngle = clamp((x - playerX) * 27, -6, 6);
+  const aimAngle = aim * (7 + 7 * netProximity);
+  const angle = clamp(positionAngle + contactAngle + aimAngle, -maxReturnAngle, maxReturnAngle);
+  const landingY = shot === 'lob' ? -.92 : -.80;
+  const lateralTravel = (y - landingY) * Math.tan(angle * radiansPerDegree) / courtWidthToLength;
+  return { x: x + lateralTravel, y: landingY, angle };
 }
 
 export function drivePreview(match, index, input) {
@@ -167,38 +180,38 @@ export function drivePreview(match, index, input) {
   const serve = !match.drill && !match.ball && match.server === index;
   const previous = serve ? match.toss?.aim : p.charge?.aim;
   const predicted = predictContact(match.ball, p, index);
-  const x = predicted?.x ?? p.x;
   if (predicted && wrongSide(predicted, p, index)) return null;
-  const orientation = side(index);
-  const target = shotTarget(match, x * orientation, 'drive', shotAim(p, input, index, previous),
-    serve, (x - p.x) * orientation);
+  const target = shotTarget(match, index, predicted ?? p, 'drive', shotAim(p, input, index, previous), serve);
   return { ...target, lift: serve ? 0 : shotLift(input, p.charge?.lift),
     releaseReady: !!predicted && predicted.age - match.ball.age < swingFrames };
 }
 
 function ballPace(ball) {
-  // The two court axes are normalized separately. Scale the width to the same units as the length.
-  return Math.hypot(ball.vx * .346, ball.vy);
+  return Math.hypot(ball.vx * courtWidthToLength, ball.vy);
 }
 
 function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseLeadFrames = null) {
   const orientation = side(index);
   const lob = shot === 'lob';
+  const target = shotTarget(match, index, start, shot, aim, serve);
+  const depth = start.y * orientation - target.y;
   const speed = 92 + Math.round(9 * power);
   const incomingSpeed = serve ? 0 : ballPace(match.ball);
   const paceFactor = clamp(1 + (incomingSpeed - .028) * 5, .94, 1.10);
-  const returnFrames = lob ? 86 - 6 * power : (61 - 9 * power) / paceFactor;
-  const regularFlight = Math.round(serve ? serveFlight * 101 / speed : returnFrames);
+  const returnPace = (.027 + .0057 * power) * (lob ? .85 : paceFactor);
+  const regularFlight = serve ? Math.round(serveFlight * 101 / speed) : Math.max(24, Math.round(depth / returnPace));
   const boost = !serve && !lob && releaseLeadFrames !== null
     ? .22 * clamp((power - .5) / .5, 0, 1) * clamp((14 - releaseLeadFrames) / 12, 0, 1) : 0;
-  const frames = Math.round(regularFlight / (1 + boost));
-  const pace = regularFlight / frames;
-  // Keep a high arc at full charge, with a lower ceiling for lobs near the net.
-  const lobHeight = .67 + .025 * power - .12 * Math.max(0, 1 - start.y * orientation);
-  const gravity = lob ? 8 * lobHeight / frames ** 2 : (serve ? .00040 : .00044 * (1 + .30 * lift)) * pace ** 2;
+  const frames = serve ? regularFlight : Math.max(24, Math.round(regularFlight / (1 + boost)));
+  const paceBoost = regularFlight / frames - 1;
+  // Start the parabola at the contact height and traverse its remaining phase during the flight.
+  const netProximity = clamp(1 - start.y * orientation, 0, 1);
+  const arcHeight = lob ? .68 - .08 * netProximity : .20 * (1 + .30 * lift);
+  const apex = Math.max(arcHeight, start.z + .015);
+  const initialPhase = (1 - Math.sqrt(1 - Math.max(0, start.z) / apex)) / 2;
+  const gravity = serve ? .00040 : 8 * apex * (1 - initialPhase) ** 2 / frames ** 2;
   const p = match.players[index];
   const offset = (start.x - p.x) * orientation;
-  const target = shotTarget(match, start.x * orientation, shot, aim, serve, offset);
   const spin = serve ? orientation * Math.sign(aim) * Math.max(0, (Math.abs(aim) - .45) / .55) : 0;
   const drift = spin * spinAcceleration * frames * (frames - 1) / 2;
   match.ball = {
@@ -212,11 +225,12 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseL
     player: index, shot, aim, power, serve,
     ...(serve && spin ? { spin: Math.round(spin * orientation * 100) / 100 } : {}),
     ...(serve ? {} : { stroke: p.stroke, offset: Math.round(offset * 1000) / 1000,
+      angle: Math.round(target.angle * 10) / 10, flightFrames: frames,
       landingX: Math.round(target.x * 1000) / 1000,
       incomingSpeed: Math.round(incomingSpeed * 10000) / 10000,
       returnSpeed: Math.round(ballPace(match.ball) * 10000) / 10000,
       ...(lob ? {} : { lift: Math.round(lift * 100) / 100, releaseLeadFrames,
-        paceBoost: Math.round((pace - 1) * 1000) / 1000 }) })
+        paceBoost: Math.round(paceBoost * 1000) / 1000 }) })
   };
   match.lastShots[index] = detail;
   event(match, 'hit', detail);
@@ -224,7 +238,7 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseL
   p.power = power;
   p.charge = null;
   p.usedShot = true;
-  match.call = serve ? (spin ? 'Spin serve · ' : 'Serve · ') + speed + ' MPH' : lob ? 'Lob' : boost >= .1 ? 'Power drive' : 'Drive';
+  match.call = serve ? (spin ? 'Spin serve · ' : 'Serve · ') + speed + ' MPH' : lob ? 'Lob' : paceBoost >= .1 ? 'Power drive' : 'Drive';
   if (!serve) match.rally++;
 }
 

@@ -1,9 +1,9 @@
 import { setupEspresso } from './espresso.js?v=store-roster';
-import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=early-charge';
+import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=flight-angle';
 import { drawPlayerPreview, makeRenderer } from './render.js?v=store-roster';
 import { roster, setupStore } from './store.js?v=store-roster';
 import { setupPreferences } from './preferences.js?v=saves';
-import { gameLogs, pointMetrics } from './game-logs.js?v=early-charge';
+import { gameLogs, pointMetrics } from './game-logs.js?v=flight-angle';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
