@@ -125,7 +125,7 @@ function aimMovement(p, input, index) {
 }
 
 function move(p, input, index) {
-  if (input.held === 'drive') {
+  if (input.held) {
     p.vx = p.vy = 0;
     return;
   }
@@ -174,15 +174,16 @@ function shotTarget(match, index, contactPoint, shot, aim, serve) {
   return { x: x + lateralTravel, y: landingY, angle };
 }
 
-export function drivePreview(match, index, input) {
+export function shotPreview(match, index, input) {
   const p = match.players[index];
-  if (input.held !== 'drive' || p.usedShot || match.pause || match.winner !== null) return null;
+  const shot = input.held;
+  if (!shot || p.usedShot || match.pause || match.winner !== null) return null;
   const serve = !match.drill && !match.ball && match.server === index;
   const previous = serve ? match.toss?.aim : p.charge?.aim;
   const predicted = predictContact(match.ball, p, index);
   if (predicted && wrongSide(predicted, p, index)) return null;
-  const target = shotTarget(match, index, predicted ?? p, 'drive', shotAim(p, input, index, previous), serve);
-  return { ...target, lift: serve ? 0 : shotLift(input, p.charge?.lift),
+  const target = shotTarget(match, index, predicted ?? p, shot, shotAim(p, input, index, previous), serve);
+  return { ...target, lift: !serve && shot === 'drive' ? shotLift(input, p.charge?.lift) : 0,
     releaseReady: !!predicted && predicted.age - match.ball.age < swingFrames };
 }
 
@@ -229,7 +230,8 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseL
       landingX: Math.round(target.x * 1000) / 1000,
       incomingSpeed: Math.round(incomingSpeed * 10000) / 10000,
       returnSpeed: Math.round(ballPace(match.ball) * 10000) / 10000,
-      ...(lob ? {} : { lift: Math.round(lift * 100) / 100, releaseLeadFrames,
+      releaseLeadFrames,
+      ...(lob ? {} : { lift: Math.round(lift * 100) / 100,
         paceBoost: Math.round(paceBoost * 1000) / 1000 }) })
   };
   match.lastShots[index] = detail;
@@ -395,13 +397,15 @@ function stepPlayer(match, index, action) {
   const incoming = match.ball?.hitter === other(index);
   if (p.swing > 0) p.swing--;
 
-  if (p.charge?.shot === 'drive' && input.held !== 'drive') {
+  if (p.charge && p.charge.shot !== input.held) {
     const charge = p.charge;
     p.charge = null;
-    if (incoming) {
+    if (input.held) {
+      p.stroke = null;
+    } else if (incoming) {
       p.stroke ??= chooseStroke(match.ball, p, index);
       const expected = predictContact(match.ball, p, index);
-      p.pending = { shot: 'drive', aim: charge.aim, lift: charge.lift,
+      p.pending = { shot: charge.shot, aim: charge.aim, lift: charge.lift,
         power: p.power, frames: swingFrames,
         releaseLeadFrames: expected ? expected.age - match.ball.age : null };
       p.swing = swingAnimationFrames;
@@ -414,7 +418,7 @@ function stepPlayer(match, index, action) {
     } else if (--p.pending.frames <= 0) {
       match.lastMisses[index] = { stroke: p.stroke, reason: 'early',
         releaseLeadFrames: p.pending.releaseLeadFrames };
-      event(match, 'miss', { player: index, shot: 'drive', reason: 'early' });
+      event(match, 'miss', { player: index, shot: p.pending.shot, reason: 'early' });
       match.call = 'Swing too early';
       p.pending = null;
     }
@@ -422,24 +426,20 @@ function stepPlayer(match, index, action) {
     return;
   }
   if (!input.held) {
-    p.charge = null;
     p.usedShot = false;
-  } else if (p.charge && p.charge.shot !== input.held) {
-    p.charge = null;
-    p.stroke = null;
   }
   if (!match.drill && !match.ball && input.shot && index === match.server) {
     startToss(match, input);
     return true;
   }
 
-  const planted = input.held === 'drive' || !input.x && !input.y;
+  const planted = input.held || !input.x && !input.y;
   if (!p.swing) {
     if (!incoming || !planted && !p.charge) p.stroke = null;
     else if (!p.stroke || !input.held) p.stroke = chooseStroke(match.ball, p, index);
   }
   const canPrepare = match.ball || match.drill || index !== match.server;
-  if (canPrepare && !p.swing && !p.usedShot && input.held && !p.charge && planted) {
+  if (canPrepare && !p.swing && !p.usedShot && input.held && !p.charge) {
     p.charge = { shot: input.held, frames: 0, aim: 0, lift: 0 };
   }
   if (match.drill && index === 0 && incoming) {
@@ -463,9 +463,6 @@ function stepPlayer(match, index, action) {
   if (p.charge.shot === 'drive') p.charge.lift = shotLift(input, p.charge.lift);
   p.charge.frames = Math.min(p.charge.frames + 1, fullChargeFrames * maxRallyPower);
   p.power = p.charge.frames / fullChargeFrames;
-  if (p.charge.shot === 'lob' && contact(match.ball, p, index)) {
-    strike(match, p, index, { ...p.charge, power: p.power });
-  }
 }
 
 export function step(match, inputs) {

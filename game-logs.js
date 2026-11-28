@@ -28,7 +28,7 @@ export function gameLogs(onPageEnd) {
       record('session_start');
       timer = setInterval(flush, 10_000);
     }
-    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-28-flight-angle', ...data } });
+    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-28-release-lob', ...data } });
     if (session.queue.length > 250) session.queue.shift();
   }
 

@@ -1,9 +1,9 @@
 import { setupEspresso } from './espresso.js?v=store-roster';
-import { cpuInput, drivePreview, maxRallyPower, newMatch, step } from './tennis.js?v=flight-angle';
+import { cpuInput, shotPreview, maxRallyPower, newMatch, step } from './tennis.js?v=release-lob';
 import { drawPlayerPreview, makeRenderer } from './render.js?v=store-roster';
 import { roster, setupStore } from './store.js?v=store-roster';
 import { setupPreferences } from './preferences.js?v=saves';
-import { gameLogs, pointMetrics } from './game-logs.js?v=flight-angle';
+import { gameLogs, pointMetrics } from './game-logs.js?v=release-lob';
 
 import { connectionLog, courtSound, playLog } from './feedback.js?v=rooms-diagnostics';
 
@@ -111,11 +111,14 @@ function useControls(method) {
   startMeasuredMatch();
 }
 
+const shotKeys = { KeyZ: 'drive', KeyX: 'lob' };
+const aiming = () => keys.has('KeyZ') || keys.has('KeyX');
+
 function press(key) {
-  if (!keys.has(key) && (key === 'KeyZ' || key === 'KeyX')) {
+  if (!keys.has(key) && shotKeys[key]) {
     if (soundEnabled.checked) audio.unlock();
-    localShot = key === 'KeyZ' ? 'drive' : 'lob';
-    if (key === 'KeyZ' && drag) {
+    localShot = shotKeys[key];
+    if (drag) {
       drag.aimOnly = true;
       drag.y = 0;
     }
@@ -133,7 +136,7 @@ window.addEventListener('keydown', event => {
 });
 function release(key) {
   keys.delete(key);
-  if (key === 'KeyZ') resumeMovement();
+  if (shotKeys[key] && !aiming()) resumeMovement();
 }
 window.addEventListener('keyup', event => release(movementKeys[event.code] || event.code));
 function updateFullscreen() {
@@ -201,7 +204,7 @@ stick.addEventListener('pointerdown', event => {
   drag = {
     id: event.pointerId, startX: event.clientX, startY: event.clientY,
     lastX: event.clientX, lastY: event.clientY, axis: null, corrected: false,
-    aimOnly: keys.has('KeyZ'), x: 0, y: 0
+    aimOnly: aiming(), x: 0, y: 0
   };
   stick.classList.add('is-held');
 });
@@ -622,7 +625,7 @@ function frame(now) {
   const p = match.players[view];
   const serving = match.server === view && (match.toss || p.swing && match.lastShots?.[view]?.serve);
   const maxPower = serving ? 1 : maxRallyPower;
-  render(match, view, active, active ? drivePreview(match, view, localInput()) : null, maxPower, ownPlayer, opponentPlayer);
+  render(match, view, active, active ? shotPreview(match, view, localInput()) : null, maxPower, ownPlayer, opponentPlayer);
   if (match.drill && byId('drill-progress').textContent !== match.call) {
     byId('drill-progress').textContent = match.call;
   }
