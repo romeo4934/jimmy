@@ -46,7 +46,6 @@ const feeds = [0, -.50, .50];
 
 function feedBall(match) {
   const drill = match.drill;
-  match.players = [player(0), player(1)];
   match.rally = 0;
   match.lastShots = [null, null];
   match.lastMisses = [null, null];
@@ -69,6 +68,7 @@ function finishDrillBall(match, success, reason) {
   if (success) drill.hits++;
   match.ball = null;
   drill.wait = 85;
+  if (drill.attempt < feeds.length) match.players = [player(0), player(1)];
   match.call = drill.attempt === feeds.length
     ? drill.hits + ' / ' + feeds.length + ' returns · Drill complete'
     : reason + ' · ' + drill.attempt + ' / ' + feeds.length;
@@ -164,7 +164,7 @@ function shotTarget(match, localX, shot, aim, serve, offset = 0) {
 export function drivePreview(match, index, input) {
   const p = match.players[index];
   if (input.held !== 'drive' || p.usedShot || match.pause || match.winner !== null) return null;
-  const serve = !match.ball && match.server === index;
+  const serve = !match.drill && !match.ball && match.server === index;
   const previous = serve ? match.toss?.aim : p.charge?.aim;
   const predicted = predictContact(match.ball, p, index);
   const x = predicted?.x ?? p.x;
@@ -187,14 +187,15 @@ function launch(match, index, start, shot, aim, serve, power, lift = 0, releaseL
   const speed = 92 + Math.round(9 * power);
   const incomingSpeed = serve ? 0 : ballPace(match.ball);
   const paceFactor = clamp(1 + (incomingSpeed - .028) * 5, .94, 1.10);
-  const returnFrames = (lob ? 74 - 11 * power : 61 - 9 * power) / paceFactor;
+  const returnFrames = lob ? 86 - 6 * power : (61 - 9 * power) / paceFactor;
   const regularFlight = Math.round(serve ? serveFlight * 101 / speed : returnFrames);
   const boost = !serve && !lob && releaseLeadFrames !== null
     ? .22 * clamp((power - .5) / .5, 0, 1) * clamp((14 - releaseLeadFrames) / 12, 0, 1) : 0;
   const frames = Math.round(regularFlight / (1 + boost));
   const pace = regularFlight / frames;
-  // Preserve the arc and landing point when the same shot travels faster.
-  const gravity = (serve ? .00040 : lob ? .00064 : .00044 * (1 + .30 * lift)) * pace ** 2;
+  // Keep a high arc at full charge, with a lower ceiling for lobs near the net.
+  const lobHeight = .67 + .025 * power - .12 * Math.max(0, 1 - start.y * orientation);
+  const gravity = lob ? 8 * lobHeight / frames ** 2 : (serve ? .00040 : .00044 * (1 + .30 * lift)) * pace ** 2;
   const p = match.players[index];
   const offset = (start.x - p.x) * orientation;
   const target = shotTarget(match, start.x * orientation, shot, aim, serve, offset);
@@ -374,10 +375,91 @@ function strike(match, p, index, swing) {
   }
 }
 
+function stepPlayer(match, index, action) {
+  const p = match.players[index];
+  const input = aimMovement(p, action, index);
+  const incoming = match.ball?.hitter === other(index);
+  if (p.swing > 0) p.swing--;
+
+  if (p.charge?.shot === 'drive' && input.held !== 'drive') {
+    const charge = p.charge;
+    p.charge = null;
+    if (incoming) {
+      p.stroke ??= chooseStroke(match.ball, p, index);
+      const expected = predictContact(match.ball, p, index);
+      p.pending = { shot: 'drive', aim: charge.aim, lift: charge.lift,
+        power: p.power, frames: swingFrames,
+        releaseLeadFrames: expected ? expected.age - match.ball.age : null };
+      p.swing = swingAnimationFrames;
+    }
+  }
+  if (p.pending) {
+    if (contact(match.ball, p, index)) {
+      strike(match, p, index, p.pending);
+      p.pending = null;
+    } else if (--p.pending.frames <= 0) {
+      match.lastMisses[index] = { stroke: p.stroke, reason: 'early',
+        releaseLeadFrames: p.pending.releaseLeadFrames };
+      event(match, 'miss', { player: index, shot: 'drive', reason: 'early' });
+      match.call = 'Swing too early';
+      p.pending = null;
+    }
+    move(p, input, index);
+    return;
+  }
+  if (!input.held) {
+    p.charge = null;
+    p.usedShot = false;
+  } else if (p.charge && p.charge.shot !== input.held) {
+    p.charge = null;
+    p.stroke = null;
+  }
+  if (!match.drill && !match.ball && input.shot && index === match.server) {
+    startToss(match, input);
+    return true;
+  }
+
+  const planted = input.held === 'drive' || !input.x && !input.y;
+  if (!p.swing) {
+    if (!incoming || !planted && !p.charge) p.stroke = null;
+    else if (!p.stroke || !input.held) p.stroke = chooseStroke(match.ball, p, index);
+  }
+  const canPrepare = match.ball || match.drill || index !== match.server;
+  if (canPrepare && !p.swing && !p.usedShot && input.held && !p.charge && planted) {
+    p.charge = { shot: input.held, frames: 0, aim: 0, lift: 0 };
+  }
+  if (match.drill && index === 0 && incoming) {
+    const ball = match.ball;
+    if (p.charge && match.drill.chargeFrame === null) match.drill.chargeFrame = ball.age;
+    if (ball.y > 0 && ball.z < .32) {
+      const distance = Math.hypot(ball.x - p.x, (ball.y - p.y) * 1.2);
+      if (distance < (match.drill.closest ?? Infinity)) {
+        match.drill.closest = distance;
+        match.drill.closestFrame = ball.age;
+      }
+    }
+  }
+  if (!p.charge) {
+    p.power = p.swing ? p.power : 0;
+    move(p, input, index);
+    return;
+  }
+  p.vx = p.vy = 0;
+  p.charge.aim = shotAim(p, input, index, p.charge.aim);
+  if (p.charge.shot === 'drive') p.charge.lift = shotLift(input, p.charge.lift);
+  p.charge.frames = Math.min(p.charge.frames + 1, fullChargeFrames * maxRallyPower);
+  p.power = p.charge.frames / fullChargeFrames;
+  if (p.charge.shot === 'lob' && contact(match.ball, p, index)) {
+    strike(match, p, index, { ...p.charge, power: p.power });
+  }
+}
+
 export function step(match, inputs) {
   if (match.winner !== null) return;
   if (match.drill && !match.ball) {
-    if (match.drill.attempt < feeds.length && --match.drill.wait <= 0) feedBall(match);
+    if (match.drill.attempt >= feeds.length) return;
+    stepPlayer(match, 0, inputs[0]);
+    if (--match.drill.wait <= 0) feedBall(match);
     return;
   }
   if (match.pause > 0) {
@@ -386,80 +468,12 @@ export function step(match, inputs) {
   }
   if (match.toss) {
     const receiver = other(match.server);
-    move(match.players[receiver], aimMovement(match.players[receiver], inputs[receiver], receiver), receiver);
+    stepPlayer(match, receiver, inputs[receiver]);
     stepToss(match, inputs[match.server]);
     return;
   }
-  for (const [index, p] of match.players.entries()) {
-    const input = aimMovement(p, inputs[index], index);
-    if (p.swing > 0) p.swing--;
-    if (p.charge?.shot === 'drive' && input.held !== 'drive') {
-      const expected = predictContact(match.ball, p, index);
-      p.pending = { shot: 'drive', aim: p.charge.aim, lift: p.charge.lift,
-        power: p.power, frames: swingFrames,
-        releaseLeadFrames: expected ? expected.age - match.ball.age : null };
-      p.charge = null;
-      p.swing = swingAnimationFrames;
-    }
-    if (p.pending) {
-      if (contact(match.ball, p, index)) {
-        strike(match, p, index, p.pending);
-        p.pending = null;
-      } else if (--p.pending.frames <= 0) {
-        match.lastMisses[index] = { stroke: p.stroke, reason: 'early',
-          releaseLeadFrames: p.pending.releaseLeadFrames };
-        event(match, 'miss', { player: index, shot: 'drive', reason: 'early' });
-        match.call = 'Swing too early';
-        p.pending = null;
-      }
-      move(p, input, index);
-      continue;
-    }
-    if (!input.held) {
-      p.charge = null;
-      p.usedShot = false;
-    } else if (p.charge && p.charge.shot !== input.held) {
-      p.charge = null;
-      p.stroke = null;
-    }
-    if (!match.ball && input.shot && index === match.server) {
-      startToss(match, input);
-      return;
-    }
-    const incoming = match.ball?.hitter === other(index);
-    const planted = input.held === 'drive' || !input.x && !input.y;
-    if (!incoming) p.charge = null;
-    if (!p.swing) {
-      if (!incoming || !planted && !p.charge) p.stroke = null;
-      else if (!p.stroke || !input.held) p.stroke = chooseStroke(match.ball, p, index);
-    }
-    if (incoming && !p.swing && !p.usedShot && input.held && !p.charge && planted) {
-      p.charge = { shot: input.held, frames: 0, aim: 0, lift: 0 };
-    }
-    if (match.drill && index === 0 && incoming) {
-      const ball = match.ball;
-      if (p.charge && match.drill.chargeFrame === null) match.drill.chargeFrame = ball.age;
-      if (ball.y > 0 && ball.z < .32) {
-        const distance = Math.hypot(ball.x - p.x, (ball.y - p.y) * 1.2);
-        if (distance < (match.drill.closest ?? Infinity)) {
-          match.drill.closest = distance;
-          match.drill.closestFrame = ball.age;
-        }
-      }
-    }
-    if (!p.charge) {
-      p.power = p.swing ? p.power : 0;
-      move(p, input, index);
-      continue;
-    }
-    p.vx = p.vy = 0;
-    p.charge.aim = shotAim(p, input, index, p.charge.aim);
-    if (p.charge.shot === 'drive') p.charge.lift = shotLift(input, p.charge.lift);
-    p.charge.frames = Math.min(p.charge.frames + 1, fullChargeFrames * maxRallyPower);
-    p.power = p.charge.frames / fullChargeFrames;
-    if (p.charge.shot === 'lob' && contact(match.ball, p, index)) {
-      strike(match, p, index, { ...p.charge, power: p.power });
-    }
+  for (const index of [0, 1]) {
+    if (stepPlayer(match, index, inputs[index])) return;
   }
   if (match.ball) stepBall(match);
 }

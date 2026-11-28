@@ -22,4 +22,4 @@ Pour analyser les échanges, lire le jeu `tennis.arcadefleet.com` avec la clé `
 
 Pour lancer le jeu en local, exécuter `python3 -m http.server 8000` depuis ce dossier et ouvrir `http://localhost:8000`.
 
-Sur téléphone, jouer en paysage avec la manette à gauche. Maintenir Drive pour charger, puis relâcher près du contact pour accélérer la balle. Au clavier, utiliser les flèches ou WASD pour se déplacer, Z pour Drive et X pour Lob.
+Sur téléphone, jouer en paysage avec la manette à gauche. Tu peux charger Drive ou Lob avant la frappe adverse. Relâche Drive près du contact pour accélérer la balle ou garde Lob enfoncé jusqu’au contact. Au clavier, utilise les flèches ou WASD pour te déplacer, Z pour Drive et X pour Lob.

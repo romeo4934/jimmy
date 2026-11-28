@@ -28,7 +28,7 @@ export function gameLogs(onPageEnd) {
       record('session_start');
       timer = setInterval(flush, 10_000);
     }
-    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-27-arcade', ...data } });
+    session.queue.push({ type, ts: Math.round(performance.now() - session.start), data: { build: '2026-11-28-early-charge', ...data } });
     if (session.queue.length > 250) session.queue.shift();
   }
 
