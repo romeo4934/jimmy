@@ -42,6 +42,7 @@
     <button id="open-invite" type="button">Invite friend</button>
     <button id="open-store" type="button">Store</button>
     <button id="open-menu" type="button">Menu</button>
+    <button id="fullscreen" type="button" aria-pressed="false">Fullscreen</button>
   </nav>
 </div>
 <div id="score" class="score"><div><i></i><span id="p1-name" class="score-name">You</span><strong id="p1">0</strong></div><span id="games">GAMES 0–0</span><div><i></i><span id="p2-name" class="score-name">CPU</span><strong id="p2">0</strong></div></div>
@@ -81,7 +82,6 @@
 <div class="menu-actions">
   <button id="practice" type="button">Play vs CPU</button>
   <button id="drill" class="secondary" type="button">Return drill</button>
-  <button id="fullscreen" class="secondary" type="button" aria-pressed="false">Fullscreen</button>
 </div>
 <p class="controls-hint"><span class="key-controls">Arrows or WASD to move · Z for Drive · X for Lob.<br></span>Hold Drive to charge, then release near contact.</p>
 <details class="options">
@@ -129,6 +129,6 @@
   }
 </script>
 <script defer src="https://connect.espressocash.com/sdk.js?v=player-tips"></script>
-<script type="module" src="./app.js?v=store-roster"></script>
+<script type="module" src="./app.js?v=court-fullscreen"></script>
 </body>
 </html>

@@ -142,7 +142,6 @@ function updateFullscreen() {
   fullscreen.setAttribute('aria-pressed', String(expanded));
 }
 fullscreen.onclick = async () => {
-  menuDialog.close();
   if (document.fullscreenElement === game) await document.exitFullscreen();
   else if (game.classList.contains('expanded')) game.classList.remove('expanded');
   else {
